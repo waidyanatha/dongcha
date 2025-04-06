@@ -1,0 +1,19 @@
+### ALL ###
+###
+__init__.py
+app.ini
+app.log
+deprecated_*
+DEPRECATED_
+__pycache__
+.ipynb_checkpoints
+nohup.out
+.git/*
+*.env
+*.lock
+### UTILS ###
+###
+notebooks/ml/timeseries/.ipynb_checkpoints/
+rezaware/__pycache__/*
+rezaware/logs/*
+

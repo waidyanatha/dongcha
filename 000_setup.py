@@ -163,10 +163,10 @@ def main():
         ''' help instructions '''
         if "h" in d.keys() and d["h"]:
             print("\nINSTRUCTIONS for 000_setup execution with parameters:")
-            print("\t--apps\tcomma separated list of apps to setup (e.g. --apps=wrangler, visuals")
+            print("\t--apps\tcomma separated list of apps to setup (e.g. --apps=wrangler,visuals")
             print("\t\totherwise all apps (mining, visuals, & wrangler) will be setup")
             print("\t--with_ini_files=True creates the __init__.py all module package folders")
-            print("\t--run_conf_files=True will configure environment with app.cfg parameters")
+#            print("\t--run_conf_files=True will configure environment with app.cfg parameters")
             print("\t--init_proj_env=True copies the 000_default .toml & .env files into the project")
             sys.exit(0)
         

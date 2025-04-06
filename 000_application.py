@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # __actions__ = ["INFO", "CREATE", "READ", "UPDATE", "DEACTIVATE" ]
 # __methods__ = ["GET", "POST", "DELETE", "PUT"]
-# __desc__ = "Flask instantiated rezaware module: "
+# __desc__ = "Flask instantiated dongcha module: "
 
 @app.route('/')
 def index():
@@ -20,8 +20,8 @@ def index():
             descriptions
     """
     ret_dict = {
-        "data" : ["Welcome to REZAWARE API controller", 
-                  "You have successfully accessed rezaware api controller",
+        "data" : ["Welcome to dongcha API controller", 
+                  "You have successfully accessed dongcha api controller",
         {
             "endpoints" : [
                 {"etl/loader" :
@@ -77,7 +77,7 @@ def etl_loader_rdbm():
 
 __actions__ = ["INFO", "CREATE", "READ", "UPDATE", "DEACTIVATE" ]
 __methods__ = ["GET", "POST", "DELETE", "PUT"]
-__desc__ = "Flask instantiated rezaware module: "
+__desc__ = "Flask instantiated dongcha module: "
 
 class package_action(object):
 

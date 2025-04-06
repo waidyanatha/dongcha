@@ -5,7 +5,7 @@
 __name__ = "sparkNoSQL"
 __package__ = "loader"
 __module__ = "etl"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__= "app.cfg"
 
@@ -24,7 +24,7 @@ try:
     import pandas as pd
     from bson.objectid import ObjectId
 
-    from rezaware.modules.etl.loader import __propAttr__ as attr
+    from dongcha.modules.etl.loader import __propAttr__ as attr
 
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
           % (__name__.upper(),__package__.upper(),__module__.upper()))
@@ -112,7 +112,7 @@ class dataWorkLoads(attr.properties):
             self._rezHome = pkgConf.get("CWDS","PROJECT")
             sys.path.insert(1,self._rezHome)
             ''' initialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self._rezHome,
                 app=self.__app__, 
@@ -476,8 +476,8 @@ class dataWorkLoads(attr.properties):
                         ''' create a new database '''
                         db_name = self.create_db(
                             db_name = db_name,
-                            db_user = self._dbUser, # 'rezawareAdmin',
-                            db_pswd = self._dbPswd, # 'rezaware',
+                            db_user = self._dbUser, # 'dongchaAdmin',
+                            db_pswd = self._dbPswd, # 'dongcha',
                             db_authSource=self._dbAuthSource,    # 'admin',
                             db_authMech = self._dbAuthMechanism, # 'SCRAM-SHA-256',
                         )

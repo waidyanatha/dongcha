@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "rezaware"
+name = "dongcha"
 version = "0.1.0"
-description = "rezaware platform for BI augmented AI/ML workloads default installations"
+description = "dongcha platform for BI augmented AI/ML workloads default installations"
 authors = ["Nuwan Waidyanatha <farmraider@protonmail>"]
 readme = "README.md"
 

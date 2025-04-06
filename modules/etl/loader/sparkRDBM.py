@@ -5,7 +5,7 @@
 __name__ = "sparkRDBM"
 __package__ = "loader"
 __module__ = "etl"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -32,7 +32,7 @@ try:
 
     # from google.cloud import bigquery
 
-    from rezaware.modules.etl.loader import __propAttr__ as attr
+    from dongcha.modules.etl.loader import __propAttr__ as attr
 
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
           % (__name__.upper(),__package__.upper(),__module__.upper()))
@@ -150,7 +150,7 @@ class dataWorkLoads(attr.properties):
             sys.path.insert(1,self.projHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.projHome,
                 app=self.__app__, 

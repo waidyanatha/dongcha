@@ -5,7 +5,7 @@
 __name__ ="FeedWorkLoads"
 __module__ = "etl"
 __package__= "extractor"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__= "app.cfg"
 
@@ -40,7 +40,7 @@ class FeedWorkLoads():
     
     We implement mongodb and pyspark to perform the the data source feeds management package.
     class is instantiated, it will inherit properties and methods from packages 
-    (1) rezaware/etl/extractor/dataFeedsDB - to read feeds information from NoSQL DB collections & documents
+    (1) dongcha/etl/extractor/dataFeedsDB - to read feeds information from NoSQL DB collections & documents
     
     contributors:
         * nuwan.waidyanatha@rezgateway.com
@@ -120,7 +120,7 @@ class FeedWorkLoads():
             self.rezHome = pkgConf.get("CWDS","PROJECT")
             sys.path.insert(1,self.rezHome)
             ''' initialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -137,7 +137,7 @@ class FeedWorkLoads():
                            self.__name__.upper(),
                            self.__desc__))
 
-            from rezaware.modules.etl.extractor import dataFeedsDB as fdb
+            from dongcha.modules.etl.extractor import dataFeedsDB as fdb
             clsFDB=fdb.FeedWorkLoads(desc=self.__desc__)
             print("%s Class initialization complete" % self.__name__)
 

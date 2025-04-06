@@ -5,7 +5,7 @@
 __name__ = "RollingStats"
 __package__= "timeseries"
 __module__ = "ml"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 
 ''' Load necessary and sufficient python librairies that are used throughout the class'''
@@ -26,7 +26,7 @@ try:
     from pyspark.sql.types import TimestampType,DateType,DoubleType, StructType,StructField,StringType
     from pyspark.sql.functions import pandas_udf
 
-    from rezaware.modules.ml.timeseries import __propAttr__ as attr
+    from dongcha.modules.ml.timeseries import __propAttr__ as attr
 
     print("All packages in %s %s %s %s imported successfully!"
           % (__app__,__module__,__package__,__name__))
@@ -45,9 +45,9 @@ class mlWorkLoads(attr.properties):
     
     We implement pyspark to perform the rolling average and standard devition. When the
     class is instantiated, it will inherit properties and methods from packages 
-    (1) rezaware/etl/load/sparkwls - to read/write data from SQL/NoSQL DBs and CVS/JSON files
-    (2) rezaware/etl/load/filesrw - to read/write files stored in local, remote, or cloud storage
-    (3) rezaware - application specific configuration and logging functions
+    (1) dongcha/etl/load/sparkwls - to read/write data from SQL/NoSQL DBs and CVS/JSON files
+    (2) dongcha/etl/load/filesrw - to read/write files stored in local, remote, or cloud storage
+    (3) dongcha - application specific configuration and logging functions
     
     contributors:
         * nuwan.waidyanatha@rezgateway.com
@@ -98,7 +98,7 @@ class mlWorkLoads(attr.properties):
             self.rezHome = config.get("CWDS","PROJECT")
             sys.path.insert(1,self.rezHome)
 
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             ''' innitialize the logger '''
             logger = logs.get_logger(
                 cwd=self.rezHome,
@@ -111,7 +111,7 @@ class mlWorkLoads(attr.properties):
             logger.info("%s %s",self.__name__,self.__package__)
 
             # ''' initialize util class to use common functions '''
-            # from rezaware.modules.lib.spark import execSession as session
+            # from dongcha.modules.lib.spark import execSession as session
             # clsSpark = session.Spawn(desc=self.__desc__)
 #             if clsSparkWL.session is None:
 #                 clsSparkWL.session = {}

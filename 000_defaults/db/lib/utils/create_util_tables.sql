@@ -7,7 +7,7 @@
     Prerequisits:
     - first the DATABASE property and 
         SCHEMA curated must be created
-    - ensure user rezaware has priviledges to drop and
+    - ensure user dongcha has priviledges to drop and
         create tables, views, and so on
 
     Contributors:
@@ -104,6 +104,6 @@ ON curated.util_refer (realm, category, value);
 
 
 ALTER TABLE curated.util_geom
-  OWNER TO rezaware;
+  OWNER TO dongcha;
 ALTER TABLE curated.util_refer
-  OWNER TO rezaware;
+  OWNER TO dongcha;

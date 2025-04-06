@@ -4,7 +4,7 @@
 __name__ = "graphClustering"
 __package__ = "cluster"
 __module__ = "ml"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -88,7 +88,7 @@ class CommunitiesWorkLoads():
 #             appConf.read(os.path.join(self.appDir, self.__conf_fname__))
             
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -101,7 +101,7 @@ class CommunitiesWorkLoads():
             logger.info("%s Class",self.__name__)
 
             ''' import file work load utils to read and write data '''
-            from rezaware.modules.etl.loader import sparkFILEwls as sf
+            from dongcha.modules.etl.loader import sparkFILEwls as sf
             clsRW = sf.FileWorkLoads(desc=self.__desc__)
             clsRW.storeMode = pkgConf.get("DATASTORE","MODE")
             clsRW.storeRoot = pkgConf.get("DATASTORE","ROOT")
@@ -121,7 +121,7 @@ class CommunitiesWorkLoads():
 
             ''' import mongo work load utils to read and write data '''
 #             from utils.modules.etl.load import noSQLwls as nosql
-            from rezaware.modules.etl.loader import sparkNoSQLwls as nosql
+            from dongcha.modules.etl.loader import sparkNoSQLwls as nosql
             clsNoSQL = nosql.NoSQLWorkLoads(desc=self.__desc__)
             
             logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."

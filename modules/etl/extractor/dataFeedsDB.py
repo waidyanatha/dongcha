@@ -5,7 +5,7 @@
 __name__ = "FeedWorkLoads"
 __module__ = "etl"
 __package__ = "extractor"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -41,7 +41,7 @@ class FeedWorkLoads():
     
     We implement mongodb and pyspark to perform the the data source feeds management package.
     class is instantiated, it will inherit properties and methods from packages 
-    (1) rezaware/etl/loader/sparkNoSQLwls - to read/write data from NoSQL DB collections & documents
+    (1) dongcha/etl/loader/sparkNoSQLwls - to read/write data from NoSQL DB collections & documents
     
     contributors:
         * nuwan.waidyanatha@rezgateway.com
@@ -119,7 +119,7 @@ class FeedWorkLoads():
             self.rezHome = pkgConf.get("CWDS","PROJECT")
             sys.path.insert(1,self.rezHome)
             ''' initialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -136,7 +136,7 @@ class FeedWorkLoads():
                            self.__name__.upper(),
                            self.__desc__))
 
-            from rezaware.modules.etl.loader import sparkNoSQLwls as nosql
+            from dongcha.modules.etl.loader import sparkNoSQLwls as nosql
             clsNsql=nosql.NoSQLWorkLoads(desc=self.__desc__)
             print("%s Class initialization complete" % self.__name__)
 
@@ -204,7 +204,7 @@ class FeedWorkLoads():
             projHome = pkgConf.get("CWDS","PROJECT")
             valid_mod = False
             valid_ent = False
-            for app in ['rezaware','mining','wrangler','visuals']:
+            for app in ['dongcha','mining','wrangler','visuals']:
                 app_cfg = configparser.ConfigParser()
                 app_cfg.read(os.path.join(projHome,app,__conf_fname__))
                 for _mod_key, _mod_val in app_cfg.items('MODULES'):

@@ -5,7 +5,7 @@
 __name__ = "isoAlphaCodes"
 __package__ = "transform"
 __module__ = "etl"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -92,7 +92,7 @@ class dataWorkLoads():
             sys.path.insert(1,self.rezHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -104,7 +104,7 @@ class dataWorkLoads():
             logger.info("%s %s",self.__name__,self.__package__)
 
             ''' instantiate sparkRDBM dataWorkLoads '''
-            from rezaware.modules.lib.spark import execSession as spark
+            from dongcha.modules.lib.spark import execSession as spark
             clsSpark = spark.Spawn(desc=self.__desc__)
 
             logger.info("%s Connection complete! ready to load data.",__s_fn_id__)

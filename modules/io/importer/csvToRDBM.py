@@ -5,7 +5,7 @@
 __name__ = "csvToRDBM"
 __module__ = "io"
 __package__ = "importer"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -117,7 +117,7 @@ class dataWorkLoads():
             sys.path.insert(1,self.rezHome)
 
             ''' initialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -129,10 +129,10 @@ class dataWorkLoads():
             logger.info("%s %s",self.__name__,self.__package__)
 
             ''' instantiate sparkRDBM dataWorkLoads '''
-            from rezaware.modules.etl.loader import sparkRDBM as db
+            from dongcha.modules.etl.loader import sparkRDBM as db
             clsSDB = db.dataWorkLoads(desc=self.__desc__)
             ''' instantiate sparkFile dataWorkLoads '''
-            from rezaware.modules.etl.loader import sparkFile as file
+            from dongcha.modules.etl.loader import sparkFile as file
             clsFile = file.dataWorkLoads(desc=self.__desc__)
 
             logger.info("%s Connection complete! ready to load data.",__s_fn_id__)

@@ -5,7 +5,7 @@
 __name__ = "sparkCleanNRich"
 __module__ = "etl"
 __package__ = "transform"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -40,7 +40,7 @@ except Exception as e:
         * nuwan.waidyanatha@rezgateway.com
 
     Resources: 
-        Data Governance in Wiki: https://tinyurl.com/rezaware-datagovernance
+        Data Governance in Wiki: https://tinyurl.com/dongcha-datagovernance
 '''
 class Transformer():
     ''' Function
@@ -117,7 +117,7 @@ class Transformer():
             sys.path.insert(1,self.rezHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 

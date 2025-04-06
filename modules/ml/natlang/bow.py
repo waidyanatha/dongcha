@@ -4,13 +4,13 @@
 __name__ = "BOWwokrkLoads" # bag of words workloads
 __package__ = "natlang"    # natural language processing
 __module__ = "ml"   # machine learning
-__app__ = "rezaware"   # rezaware utils
+__app__ = "dongcha"   # dongcha utils
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
 ''' Load necessary and sufficient python librairies that are used throughout the class'''
 try:
-    ''' essential python packages for rezaware framewor '''
+    ''' essential python packages for dongcha framewor '''
     import os
     import sys
     import configparser    
@@ -93,7 +93,7 @@ class BOWwokrkLoads():
             sys.path.insert(1,self.rezHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -105,7 +105,7 @@ class BOWwokrkLoads():
             logger.info("%s Class",self.__name__)
 
             ''' import spark database work load utils to read and write data '''
-            from rezaware.modules.etl.loader import sparkFILEwls as sFile
+            from dongcha.modules.etl.loader import sparkFILEwls as sFile
             clsSFile = sFile.FileWorkLoads(desc=self.__desc__)
             ''' import spark clean-n-rich work load utils to transform the data '''
 

@@ -5,7 +5,7 @@
 __name__ = "__propAttr__"
 __package__ = "mcmc"
 __module__ = "ml"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -101,7 +101,7 @@ class properties():
 
         global pkgConf  # this package configparser class instance
         global appConf  # configparser class instance
-        global logger   # rezaware logger class instance
+        global logger   # dongcha logger class instance
 #         global clsSDB   # etl loader sparkRDB class instance
 
         __s_fn_id__ = f"{self.__name__} function <__init__>"
@@ -115,7 +115,7 @@ class properties():
             sys.path.insert(1,self._rezHome)
             
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self._rezHome,
                 app=self.__app__, 

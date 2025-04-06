@@ -5,7 +5,7 @@
 __name__ = "ForecastModels"
 __module__ = "ml"
 __package__ = "timeseries"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 
 ''' Load necessary and sufficient python librairies that are used throughout the class'''
@@ -40,7 +40,7 @@ class ForecastModels():
     dataframe, dictionary list, or an array, to perform a timeseries seasonal predictions.
     
     When the class is instantiated, it will inherit properties and methods from packages 
-    (1) rezaware - application specific configuration and logging functions
+    (1) dongcha - application specific configuration and logging functions
     
     Resources:
     https://towardsdatascience.com/3-unique-python-packages-for-time-series-forecasting-2926a09aaf5b
@@ -88,7 +88,7 @@ class ForecastModels():
             self.rezHome = config.get("CWDS","PROJECTS")
             sys.path.insert(1,self.rezHome)
 
-            from rezaware import Logger as logs
+            from dongcha import Logger as logs
             ''' innitialize the logger '''
             logger = logs.get_logger(
                 cwd=self.rezHome,
@@ -101,7 +101,7 @@ class ForecastModels():
             logger.info("%s %s",self.__name__,self.__package__)
 
             ''' initialize util class to use common functions '''
-            from rezaware.modules.lib.spark import execSession as session
+            from dongcha.modules.lib.spark import execSession as session
             clsSpark = session.Spawn(desc=self.__desc__)
 
             logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."

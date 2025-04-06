@@ -5,7 +5,7 @@
 __name__ = "model"
 __package__="llm"
 __module__ ="ml"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__= "app.cfg"
 
@@ -116,7 +116,7 @@ class llmWorkLoads():
             sys.path.insert(1,self.projHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.projHome,
                 app=self.__app__, 
@@ -338,8 +338,8 @@ class llmWorkLoads():
                     max_retries=self._maxReTries,
                     base_url=self._baseURL,
                 )
-                from rezaware.modules.ml.llm import crewai_ollama_wrapper as wrapper
-                # from rezaware.modules.ml.llm import crewai_wrapper_tool as tool
+                from dongcha.modules.ml.llm import crewai_ollama_wrapper as wrapper
+                # from dongcha.modules.ml.llm import crewai_wrapper_tool as tool
                 _ret_model = wrapper.CrewAIOllamaWrapper(
                     ollama_model=_ret_model, 
                     model_name=_model

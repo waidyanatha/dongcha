@@ -5,7 +5,7 @@
 __name__ = "sparkFile"
 __package__ = "loader"
 __module__ = "etl"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -28,7 +28,7 @@ try:
     import boto3   # handling AWS S3
     from botocore.client import ClientError
 
-    from rezaware.modules.etl.loader import __propAttr__ as attr
+    from dongcha.modules.etl.loader import __propAttr__ as attr
 
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
           % (__name__.upper(),__package__.upper(),__module__.upper()))
@@ -158,7 +158,7 @@ class dataWorkLoads(attr.properties):
             sys.path.insert(1,self.rezHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -331,7 +331,7 @@ class dataWorkLoads(attr.properties):
 
             parameters:
                 store_root - local file system root directory or (e.g. wrangler/data/ota/scraper)
-                            S3 bucket name (e.g. rezaware-wrangler-source-code)
+                            S3 bucket name (e.g. dongcha-wrangler-source-code)
             procedure: Check it the directory exists and then set the store_root property
             return (str) self._storeRoot
 

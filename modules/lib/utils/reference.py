@@ -5,7 +5,7 @@
 __name__ = "reference"
 __package__= "utils"
 __module__ = "lib"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -98,7 +98,7 @@ class dataWorkLoads():
             sys.path.insert(1,self.rezHome)
 
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 
@@ -111,7 +111,7 @@ class dataWorkLoads():
             logger.info("%s Class",self.__name__)
 
             ''' import sparkRDBM dataworkload to read/write data from/to rdbms'''
-            from rezaware.modules.etl.loader import sparkRDBM as db
+            from dongcha.modules.etl.loader import sparkRDBM as db
             clsSDB = db.dataWorkLoads(
                 desc=self.__desc__,
             )
@@ -130,7 +130,7 @@ class dataWorkLoads():
                 or ("JARDIR" in kwargs.keys() and "".join(kwargs['JARDIR'].split())!=""):
                 clsSDB.session=kwargs
             ''' import sparkFILE dataworkload to read/write data from/to file storage'''
-            from rezaware.modules.etl.loader import sparkFile as file
+            from dongcha.modules.etl.loader import sparkFile as file
             _store_mode=None
             if "STOREMODE" in kwargs.keys() and "".join(kwargs['STOREMODE'].split())!="":
                 _store_mode = kwargs['STOREMODE']

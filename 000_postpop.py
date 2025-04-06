@@ -6,15 +6,15 @@
 '''
 def pop_util_ref(
     proj_dir= None,
-    app:str = "rezaware",
+    app:str = "dongcha",
     cfile:str="app.cfg",
 ):
     """
     Description:
-        Configure the rezaware, wrangler, mining, and visuals apps
+        Configure the dongcha, wrangler, mining, and visuals apps
         If the apps (i.e., folders) don't exist, then it the process will create them
     Attributes:
-        app (str) the name of the app wrangler, rezaware, mining, or visuals
+        app (str) the name of the app wrangler, dongcha, mining, or visuals
     Returns:
         conf_files (list) absolute path of all .cfg and .ini files 
     """
@@ -36,7 +36,7 @@ def pop_util_ref(
                          __s_fn_id__,app.upper(),_app_path)
         if not os.path.exists(os.path.join(_app_path,cfile)):
             ''' create default cfg file '''
-            shutil.copy(os.path.join(proj_dir,"rezaware","000_defaults",app.lower(),cfile.lower()),
+            shutil.copy(os.path.join(proj_dir,"dongcha","000_defaults",app.lower(),cfile.lower()),
                         os.path.join(_app_path,cfile.lower()))
             logger.debug("%s copyied default %s to %s",__s_fn_id__,cfile.upper(),_app_path)
 
@@ -46,7 +46,7 @@ def pop_util_ref(
                 os.makedirs(os.path.join(_app_path,_app_dir))
                 logger.debug("%s added empty dir %s to %s",__s_fn_id__,_app_dir.upper(),_app_path)
 
-        ''' execute rezaware to setup module/package ini files '''
+        ''' execute dongcha to setup module/package ini files '''
 
         conf_files=app
     
@@ -148,7 +148,7 @@ def main():
         logger.info('########################################################')
         logger.info("Initializing Main in %s",__name__)
 
-#         from rezaware import Logger as logs
+#         from dongcha import Logger as logs
 #         utils = __import__('000_utils')
         from utils import Config as conf
         ''' get args from command line '''
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     __name__ = "setup"
     __module__ = ""
     __package__ = ""
-    __app__ = "rezaware"
+    __app__ = "dongcha"
     __ini_fname__ = "app.ini"
     __conf_fname__ = "app.cfg"
     __apps_list__ = ['wrangler','visuals','mining']

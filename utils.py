@@ -3,8 +3,8 @@
 
 ''' Initialize with default environment variables '''
 __name__ = "app"
-__module__ = "rezaware"
-__package__ = "rezaware"
+__module__ = "dongcha"
+__package__ = "dongcha"
 __conf_file__ = "app.cfg"
 __ini_fname__ = "app.ini"
 __log_fname__ = "app.log"
@@ -166,7 +166,7 @@ class App:
 '''
     *** CLASS CONFIG ***
 
-    Initializes a ConfigParser object for any of the rezaware apps, modules, and packages.
+    Initializes a ConfigParser object for any of the dongcha apps, modules, and packages.
     Makes use of the app.cfg files to generate package-wise app.ini files. Use the config
     object for reading and writing app.ini and app.cfg data.
 
@@ -281,7 +281,7 @@ class Config(ConfigParser):
                     _ini_conf = ConfigParser()
                     ''' add the current package working directory path '''
                     _ini_conf.add_section("CWDS")
-#                     _ini_conf.set("CWDS",str("rezaware"), str(reza_cwd))
+#                     _ini_conf.set("CWDS",str("dongcha"), str(reza_cwd))
                     _ini_conf.set("CWDS",str("project"), str(reza_cwd))
                     _ini_conf.set("CWDS",str(app_name), str(app_path))
                     _ini_conf.set("CWDS",str(module), str(_mod_path))
@@ -369,7 +369,7 @@ class Config(ConfigParser):
         cfg_dict) -> str:
         """
                     parameters:
-                reza_cwd (str) - rezaware directory path
+                reza_cwd (str) - dongcha directory path
                 app_name (str) - mining, utils, visuals, or wrangler
                 conf_file (str)- generally app.cfg
                 cfg_dict (dict)- dictionary with secotor specific key value pairs
@@ -440,7 +440,7 @@ class Config(ConfigParser):
 '''
     *** CLASS LOGGER ***
 
-    Initializes a logger object for any of the rezaware apps, modules, and packages.
+    Initializes a logger object for any of the dongcha apps, modules, and packages.
 
     Contributor(s):
         * nuwan.waidyanatha@rezgateway.com
@@ -506,7 +506,7 @@ class Logger():
             can be resolved with getting format string from app.ini'''
 
         _log_format = '[%(levelname)s] - %(asctime)s - %(name)s - %(message)s'
-        _log_name = "rezaware"
+        _log_name = "dongcha"
         _log_fpath = None
 
         try:

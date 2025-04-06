@@ -4,7 +4,7 @@
 __name__ = "ClusterWorkLoads"
 __package__ = "cluster"
 __module__ = "ml"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -107,7 +107,7 @@ class ClusterWorkLoads():
             sys.path.insert(1,self.rezHome)
             
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self.rezHome,
                 app=self.__app__, 

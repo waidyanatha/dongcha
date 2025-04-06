@@ -5,7 +5,7 @@
 __name__ = "__propAttr__"
 __package__= "loader"
 __module__ = "etl"
-__app__ = "rezaware"
+__app__ = "dongcha"
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -145,7 +145,7 @@ class properties():
 
         global pkgConf  # this package configparser class instance
         global appConf  # configparser class instance
-        global logger   # rezaware logger class instance
+        global logger   # dongcha logger class instance
 #         global clsSDB   # etl loader sparkRDB class instance
 
         __s_fn_id__ = f"{self.__name__} function <__init__>"
@@ -159,7 +159,7 @@ class properties():
             sys.path.insert(1,self._rezHome)
             
             ''' innitialize the logger '''
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             logger = logs.get_logger(
                 cwd=self._rezHome,
                 app=self.__app__, 
@@ -1765,7 +1765,7 @@ class properties():
 #         try:
 #             if self._clsSDB is None:
 #                 ''' import spark RDBM work load utils to read and write data '''
-#                 from rezaware.modules.etl.loader import sparkRDBM as db
+#                 from dongcha.modules.etl.loader import sparkRDBM as db
 #                 self._clsSDB = db.dataWorkLoads(
 #                     desc=self.__desc__,
 #                     db_type = self.dbType,
@@ -1825,7 +1825,7 @@ class properties():
 #         try:
 #             if self._clsNoSQL is None:
 #                 ''' try import spark nosql work load utils to read and write data '''
-#                 from rezaware.modules.etl.loader import sparkNoSQL as nosql
+#                 from dongcha.modules.etl.loader import sparkNoSQL as nosql
 #                 self._clsNoSQL = nosql.dataWorkLoads(
 #                     db_type = self.dbType, # database type postgres (preferred), mysql, etc
 #                     db_name = self.dbName,

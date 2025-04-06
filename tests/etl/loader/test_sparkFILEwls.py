@@ -5,8 +5,8 @@ def init_classes(root):
 
     try:
         sys.path.insert(1,root)
-        import rezaware as reza
-        from rezaware.modules.etl.loader import sparkFILEwls as spark
+        import dongcha as reza
+        from dongcha.modules.etl.loader import sparkFILEwls as spark
         from utils.modules.etl.loader.sparkFILEwls import credentials as cred
 
         __desc__ = "read and write files from and to a particular source"
@@ -24,7 +24,7 @@ def init_classes(root):
         return err
 
 def test_init():
-    root = "/home/nuwan/workspace/rezaware/"
+    root = "/home/nuwan/workspace/dongcha/"
     assert init_classes(root) == None
 
 def test_read_file():

@@ -5,7 +5,7 @@
 __name__ = "nlp"
 __package__ = "natlang"    # natural language processing
 __module__ = "ml"   # machine learning
-__app__ = "rezaware"   # rezaware utils
+__app__ = "dongcha"   # dongcha utils
 __ini_fname__ = "app.ini"
 __conf_fname__ = "app.cfg"
 
@@ -88,7 +88,7 @@ class NatLanWorkLoads():
 
             self.rezHome = config.get("CWDS","PROJECT")
             sys.path.insert(1,self.rezHome)
-            from rezaware.utils import Logger as logs
+            from dongcha.utils import Logger as logs
             ''' innitialize the logger '''
             logger = logs.get_logger(
                 cwd=self.rezHome,
@@ -99,7 +99,7 @@ class NatLanWorkLoads():
             ''' set a new logger section '''
             logger.info('########################################################')
             logger.info("%s %s",self.__name__,self.__package__)
-            from rezaware.modules.lib.spark import execSession as spark
+            from dongcha.modules.lib.spark import execSession as spark
             clsSpark = spark.Spawn(desc=self.__desc__)
             ''' set tmp storage location from app.cfg '''
             self.tmpDIR = None

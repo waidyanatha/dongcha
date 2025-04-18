@@ -1,6 +1,6 @@
 # Dòngchá
 
-<img align="left" width="80" height="80" src="./img/dongcha_logo_circle.png">
+<img align="left" width="100" height="100" src="./img/dongcha_logo_circle.png">
 
 The README file is useful for projects that are using __dongcha__ platform for AI/ML and augmented BI pipelines. It is designed to integrate data wrangling, mining, and visualization in to a single coherent project. Here we introduce ways for getting started with the platform framework. The [WIKI](/wiki) for comprehensive documentation on the dongcha methodology, functional components, and behaviour.
 

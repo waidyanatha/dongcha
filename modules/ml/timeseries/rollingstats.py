@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 ''' Initialize with default environment variables '''
-__name__ = "RollingStats"
+__name__ = "rollingStats"
 __package__= "timeseries"
 __module__ = "ml"
 __app__ = "dongcha"

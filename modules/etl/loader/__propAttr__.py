@@ -155,13 +155,13 @@ class properties():
             pkgConf = configparser.ConfigParser()
             pkgConf.read(os.path.join(self.cwd,__ini_fname__))
 
-            self._rezHome = pkgConf.get("CWDS","PROJECT")
-            sys.path.insert(1,self._rezHome)
+            self._projHome = pkgConf.get("CWDS","PROJECT")
+            sys.path.insert(1,self._projHome)
             
             ''' innitialize the logger '''
             from dongcha.utils import Logger as logs
             logger = logs.get_logger(
-                cwd=self._rezHome,
+                cwd=self._projHome,
                 app=self.__app__, 
                 module=self.__module__,
                 package=self.__package__,
@@ -177,14 +177,17 @@ class properties():
             appConf = configparser.ConfigParser()
             appConf.read(os.path.join(self._appDir, self.__conf_fname__))
 
-            logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
-                         %(self.__app__,
-                           self.__module__,
-                           self.__package__,
-                           self.__name__,
-                           self.__desc__))
+            _done_str = f"{self.__name__} initialization for {self.__module__} module package "
+            _done_str+= f"{self.__package__} in {self.__app__} done.\nStart workloads: {self.__desc__}."
+            logger.debug("%s",_done_str)
+            # logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
+            #              %(self.__app__,
+            #                self.__module__,
+            #                self.__package__,
+            #                self.__name__,
+            #                self.__desc__))
 
-            print("%s Class initialization complete" % self.__name__)
+            print(_done_str)
 
         except Exception as err:
             logger.error("%s %s \n",__s_fn_id__, err)

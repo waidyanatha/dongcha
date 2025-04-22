@@ -167,12 +167,17 @@ class dataWorkLoads(attr.properties):
             #     self._dbName = db_name
             # logger.debug("%s setting %s database name %s",
             #              __s_fn_id__, self._dbType.upper(), self._dbName.upper())
-            logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
-                         %(self.__app__,
-                           self.__module__,
-                           self.__package__,
-                           self.__name__,
-                           self.__desc__))
+            _done_str = f"{self.__name__} initialization for {self.__module__} module package "
+            _done_str+= f"{self.__package__} in {self.__app__} done.\nStart workloads: {self.__desc__}."
+            logger.debug("%s",_done_str)
+            # logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
+            #              %(self.__app__,
+            #                self.__module__,
+            #                self.__package__,
+            #                self.__name__,
+            #                self.__desc__))
+
+            print(_done_str)
 
         except Exception as err:
             logger.error("%s %s \n",__s_fn_id__, err)

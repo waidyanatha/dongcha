@@ -2,7 +2,7 @@
 
 <img align="left" width="100" height="100" src="./img/dongcha_logo_circle.png">
 
-The README file is useful for projects that are using __dongcha__ platform for AI/ML and augmented BI pipelines. It is designed to integrate data wrangling, mining, and visualization in to a single coherent project. Here we introduce ways for getting started with the platform framework. The [WIKI](/wiki) for comprehensive documentation on the dongcha methodology, functional components, and behaviour.
+The README file is useful for projects that are using __dongcha__ platform for AI/ML and augmented BI pipelines. It is designed to integrate data wrangling, mining, and visualization in to a single coherent project. Here we introduce ways for getting started with the platform framework. The [WIKI](https://github.com/waidyanatha/dongcha/wiki) for comprehensive documentation on the dongcha methodology, functional components, and behaviour.
 
 洞察 (Dòngchá): 洞 (dòng) – meaning "deep" or "penetrating" and 察 (chá) – meaning "to observe" or "to examine". Together, 洞察 (dòngchá) conveys the idea of keen observation leading to deep insight or clarity. It offers a Apache Spark and Python platform for data science.
 

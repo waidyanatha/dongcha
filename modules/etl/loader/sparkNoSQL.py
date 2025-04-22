@@ -126,13 +126,17 @@ class dataWorkLoads(attr.properties):
             appConf = configparser.ConfigParser()
             appConf.read(os.path.join(self._appDir, self.__conf_fname__))
 
-            logger.debug("%s initialization for %s module package %s %s done. Starting workloads: %s."
-                         %(self.__app__.upper(),
-                           self.__module__.upper(),
-                           self.__package__.upper(),
-                           self.__name__.upper(),
-                           self.__desc__))
-            print("%s Class initialization complete" % self.__name__)
+            _done_str = f"{self.__name__} initialization for {self.__module__} module package "
+            _done_str+= f"{self.__package__} in {self.__app__} done.\nStart workloads: {self.__desc__}."
+            logger.debug("%s",_done_str)
+            # logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
+            #              %(self.__app__,
+            #                self.__module__,
+            #                self.__package__,
+            #                self.__name__,
+            #                self.__desc__))
+
+            print(_done_str)
 
         except Exception as err:
             logger.error("%s %s \n",__s_fn_id__, err)

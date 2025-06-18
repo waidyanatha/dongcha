@@ -4,7 +4,7 @@
 ''' Initialize with default environment variables '''
 __name__ = "FeatureEngineer"
 __module__ = "ml"
-__package__ = "dimreduc"
+__package__ = "dimreduce"
 __app__ = "dongcha"
 __ini_fname__ = "app.ini"
 

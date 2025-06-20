@@ -64,38 +64,81 @@ class dataWorkLoads:
         self.pipeline_stages = []
         self._column_registry = set(df.columns)
     
+    class ConstantColumnRemover(Transformer):
+        """Remove columns with only one unique value (constants)"""
+        @keyword_only
+        def __init__(self):
+            super().__init__()
+        
+        def _transform(self, dataset):
+            to_drop = []
+            
+            for col in dataset.columns:
+                # Get distinct values (optimized for Spark)
+                distinct_values = dataset.select(F.col(col)).distinct().limit(2).collect()
+                
+                if len(distinct_values) < 2:
+                    to_drop.append(col)
+            
+            if to_drop:
+                print(f"\n[Dropping {len(to_drop)} constant columns]")
+                print(f"Removed columns: {to_drop}")
+                print(f"Columns before: {len(dataset.columns)}, after: {len(dataset.columns)-len(to_drop)}")
+                return dataset.drop(*to_drop)
+            
+            print("\n[No constant columns found]")
+            return dataset
+
+
     class NullColumnRemover(Transformer):
-        """Remove columns with high null percentage with improved logging"""
+        """Remove columns with high null/zero percentage"""
         null_threshold = Param(Params._dummy(), "null_threshold", "Threshold for null percentage")
+        zero_threshold = Param(Params._dummy(), "zero_threshold", "Threshold for zero percentage")
         
         @keyword_only
-        def __init__(self, null_threshold=0.7):
+        def __init__(self, null_threshold=0.90, zero_threshold=0.90):
             super().__init__()
+            self._setDefault(zero_threshold=0.95)  # Default 95% zero threshold
             kwargs = self._input_kwargs
             self._set(**kwargs)
         
         def _transform(self, dataset):
             null_thresh = self.getOrDefault(self.null_threshold)
+            zero_thresh = self.getOrDefault(self.zero_threshold)
             total_rows = dataset.count()
-            original_cols = set(dataset.columns)
             
-            # Efficient null calculation
+            to_drop = set()
+            
+            # Check for nulls
             null_percentages = {
                 col: dataset.filter(F.col(col).isNull()).count() / total_rows
                 for col in dataset.columns
             }
+            to_drop.update([col for col, pct in null_percentages.items() if pct > null_thresh])
             
-            to_drop = [col for col, pct in null_percentages.items() if pct > null_thresh]
+            # Check for zeros in numeric columns
+            numeric_cols = [
+                f.name for f in dataset.schema.fields 
+                if isinstance(f.dataType, (NumericType, DoubleType, FloatType, IntegerType))
+            ]
             
-            if len(to_drop)>0:
-                print(f"\n[Dropping {len(to_drop)} columns with >{null_thresh*100}% nulls]")
-                print(f"Removed columns: {to_drop}")
-                print(f"Columns before: {len(original_cols)}, after: {len(original_cols)-len(to_drop)}")
+            for col in numeric_cols:
+                if col not in to_drop:  # Skip already marked columns
+                    zero_count = dataset.filter(F.col(col) == 0).count()
+                    zero_pct = zero_count / total_rows
+                    if zero_pct > zero_thresh:
+                        to_drop.add(col)
+            
+            if to_drop:
+                print(f"\n[Dropping {len(to_drop)} problematic columns]")
+                print(f"Null columns (> {null_thresh*100}% nulls): {[col for col in to_drop if null_percentages.get(col, 0) > null_thresh]}")
+                print(f"Zero columns (> {zero_thresh*100}% zeros): {[col for col in to_drop if col in numeric_cols and null_percentages.get(col, 0) <= null_thresh]}")
+                print(f"Columns before: {len(dataset.columns)}, after: {len(dataset.columns)-len(to_drop)}")
                 return dataset.drop(*to_drop)
             
-            print("\n[No columns dropped - all columns meet null threshold]")
+            print("\n[No columns dropped - all meet thresholds]")
             return dataset
-    
+        
     
     class VarianceThresholdRemover(Transformer):
         """Remove low variance columns with better numeric handling"""
@@ -339,8 +382,13 @@ class dataWorkLoads:
             return assembler.transform(dataset)
     
     # Builder methods
-    def remove_high_null_columns(self, threshold=0.7):
-        self.pipeline_stages.append(self.NullColumnRemover(null_threshold=threshold))
+    def remove_constant_columns(self):
+        self.pipeline_stages.append(self.ConstantColumnRemover())
+        return self
+
+    def remove_high_null_columns(self, null_threshold=0.7, zero_threshold=0.95):
+        self.pipeline_stages.append(
+            self.NullColumnRemover(null_threshold=null_threshold, zero_threshold=zero_threshold))
         return self
     
     def remove_low_variance_columns(self, threshold=0.1):

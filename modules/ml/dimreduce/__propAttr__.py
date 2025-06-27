@@ -18,8 +18,8 @@ try:
     import traceback
     import functools
     import re
-    from dotenv import load_dotenv
-    load_dotenv()
+    # from dotenv import load_dotenv
+    # load_dotenv()
     ''' SPARK PACKAGES '''
     import findspark
     findspark.init()
@@ -27,7 +27,8 @@ try:
     from pyspark.sql import DataFrame
     from pyspark.sql.types import *
     from pyspark.sql.window import Window
-    from pymongo import MongoClient
+    from typing import List, Iterable, Dict, Tuple
+    # from pymongo import MongoClient
     ''' DATATIME PACKAGES '''
     from datetime import datetime, date, timedelta
 
@@ -80,8 +81,15 @@ class properties():
         else:
             self.__desc__ = desc
 
+        self._realmType = [
+            'CREATIVES',  # creative comprising artifacts in an ad
+            'CAMPAIGN',   # the publishing cycle of an adset
+            'INSIGHTS',   # performance indicators of an ad campaign and creative
+        ]
+        self._realm= None
         self._data = None
-        self._session = None
+        self._stages=None
+        self._session=None
 
 
         global pkgConf  # this package configparser class instance
@@ -135,6 +143,51 @@ class properties():
 
             author: <nuwan.waidyanatha@rezgateway.com>
     '''
+    ''' --- REALM --- '''
+    @property
+    def realm(self) -> DataFrame:
+        """
+        Description:
+            realm @property and @setter functions. make sure it is a valid realm
+        Attributes:
+            realm in @setter will instantiate self._realm  
+        Returns :
+            self._realm (str) 
+        """
+
+        __s_fn_id__ = f"{self.__name__} function <@property realm>"
+
+        try:
+            if self._realm.upper() not in self._realmList:
+                raise KeyError("Invalid realm; must be one of %s"
+                                 % self._realmList)
+        except Exception as err:
+            logger.error("%s %s \n",__s_fn_id__, err)
+            logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._realm.upper()
+
+    @realm.setter
+    def realm(self,realm) -> DataFrame:
+
+        __s_fn_id__ = f"{self.__name__} function <realm.@setter>"
+
+        try:
+            if realm.upper() not in self._realmList:
+                raise KeyError("Invalid %s realm; must be one of %s"
+                                 % (type(realm), self._realmList))
+
+            self._realm = realm.upper()
+
+        except Exception as err:
+            logger.error("%s %s \n",__s_fn_id__, err)
+            logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._realm
+
+    ''' --- DATA --- '''
     @property
     def data(self):
 
@@ -177,3 +230,48 @@ class properties():
             print("[Error]"+__s_fn_id__, err)
 
         return self._data
+
+    ''' --- STAGES --- '''
+    @property
+    def stages(self) -> List:
+        """
+        Description:
+            stages @property and @setter functions manage the pipeline stages
+        Attributes:
+            stages in @setter will instantiate self._stages  
+        Returns :
+            self._stages (list) 
+        """
+
+        __s_fn_id__ = f"{self.__name__} function <@property stages>"
+
+        try:
+            if not isinstance(self._stages, list):
+                logger.warning("Setting invalid %s stages property to empty list" % type(self._stages))
+                self._stages=[]
+
+        except Exception as err:
+            logger.error("%s %s \n",__s_fn_id__, err)
+            logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._stages
+
+    @stages.setter
+    def stages(self,stages) -> DataFrame:
+
+        __s_fn_id__ = f"{self.__name__} function <stages.@setter>"
+
+        try:
+            if not isinstance(stages, list) or len(stages)<=0:
+                raise KeyError("Invalid %s stages; must be list with > 0 elements"
+                                 % (type(stages)))
+
+            self._stages = stages
+
+        except Exception as err:
+            logger.error("%s %s \n",__s_fn_id__, err)
+            logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._stages

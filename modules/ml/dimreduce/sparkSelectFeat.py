@@ -56,7 +56,6 @@ except Exception as e:
     Resources:
 '''
 class mlWorkLoads(attr.properties):
-# class mlWorkLoads(attr.properties):
     """Main class for feature engineering pipeline"""
 
     def __init__(self, data=None, realm="CREATIVES"):

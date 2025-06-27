@@ -35,7 +35,7 @@ try:
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
           % (__name__.upper(),__package__.upper(),__module__.upper()))
 
-except Exception as e:
+except ImportError as e:
     print("Some packages in {0} module {1} package for {2} function didn't load\n{3}"\
           .format(__module__.upper(),__package__.upper(),__name__.upper(),e))
 
@@ -82,13 +82,14 @@ class properties():
             self.__desc__ = desc
 
         self._realmType = [
-            'CREATIVES',  # creative comprising artifacts in an ad
-            'CAMPAIGN',   # the publishing cycle of an adset
-            'INSIGHTS',   # performance indicators of an ad campaign and creative
+            'SELECT',  # feature selection pipeline
+            'EXTRACT', # feature extraction pipeline
+            'REDUCE',  # feature reduction pipeline
         ]
         self._realm= None
         self._data = None
         self._stages=None
+        self._features=None
         self._session=None
 
 
@@ -275,3 +276,49 @@ class properties():
             print("[Error]"+__s_fn_id__, err)
 
         return self._stages
+
+
+    ''' --- FEATURES --- '''
+    @property
+    def features(self) -> str:
+        """
+        Description:
+            features @property and @setter functions manage the pipeline features
+        Attributes:
+            features in @setter will instantiate self._features
+        Returns :
+            self._features (str) 
+        """
+
+        __s_fn_id__ = f"{self.__name__} function <@property features>"
+
+        try:
+            if not isinstance(self._features, str) or self._features not in self._data.columns:
+                logger.warning("Setting invalid %s stages property to empty str" % type(self._features))
+                self._features=""
+
+        except Exception as err:
+            logger.error("%s %s \n",__s_fn_id__, err)
+            logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._features
+
+    @features.setter
+    def features(self,features) -> str:
+
+        __s_fn_id__ = f"{self.__name__} function <features.@setter>"
+
+        try:
+            if not isinstance(features, str) or features not in self._data.columns:
+                raise KeyError("Invalid %s features; must be one of columns: "
+                                 % (type(features), ", ".join(self._data.columns).upper()))
+
+            self._features = features
+
+        except Exception as err:
+            logger.error("%s %s \n",__s_fn_id__, err)
+            logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._features

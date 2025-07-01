@@ -15,34 +15,40 @@ try:
     import sys
     import configparser    
     import logging
-    import functools
+    # import functools
     import traceback
+    import inspect
  
     import findspark
     findspark.init()
     from pyspark.sql import functions as F
-    from pyspark.sql.types import (
-        NumericType, IntegerType, DoubleType, FloatType, StringType)
     from pyspark.sql import DataFrame
-    from pyspark.ml.feature import Imputer, VarianceThresholdSelector, VectorAssembler, StandardScaler
-    # from pyspark.ml.feature import UnivariateFeatureSelector, OneHotEncoder, StringIndexer
-    from pyspark.ml.feature import (
-        StringIndexer, OneHotEncoder, VectorAssembler, 
-        Imputer, VarianceThresholdSelector, StandardScaler
-    )
-    from pyspark.ml.stat import Correlation
+    from pyspark.ml.functions import vector_to_array
+    from pyspark.ml.feature import VectorAssembler
     from pyspark.ml import Pipeline, Transformer
-    from pyspark.ml.param.shared import Param, Params
+    # from pyspark.ml.param.shared import Param, Params
+    from pyspark.ml.param.shared import Param, Params, TypeConverters
+    from pyspark.sql.types import (NumericType, DoubleType, 
+                                    FloatType, IntegerType)
     from pyspark import keyword_only
-    from typing import List, Iterable, Dict, Tuple
+    from typing import List
 
+    import pandas as pd
+    import numpy as np
+    from sklearn.base import BaseEstimator
+    from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+    from sklearn.inspection import permutation_importance
+    import shap
+    from xgboost import XGBClassifier, XGBRegressor
+    from lightgbm import LGBMClassifier, LGBMRegressor
+    import matplotlib.pyplot as plt
 
     from dongcha.modules.ml.dimreduce import __propAttr__ as attr
 
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
           % (__name__.upper(),__package__.upper(),__module__.upper()))
 
-except Exception as e:
+except ImportError as e:
     print("Some packages in {0} module {1} package for {2} function didn't load\n{3}"\
           .format(__module__.upper(),__package__.upper(),__name__.upper(),e))
 
@@ -54,118 +60,171 @@ except Exception as e:
 
     Resources:
 '''
-class mlWorkLoads:
+class mlWorkLoads(attr.properties):
 # class dataWorkLoads(attr.properties):
     """Main class for feature engineering pipeline"""
     
-    def __init__(self, df: DataFrame, target_col: str, features_col: str = "features"):
-        self.data = sdf
-        self.pipeline_stages = []
-        self._column_registry = set(df.columns)
-    
-"""
+    def __init__(
+        self, 
+        data: DataFrame = None, 
+        realm: str = 'IMPORTANCE', 
+        target_col: str = "target", 
+        features_col:str= "features", # optional, will use all or mentioned feature names
+        feature_names:List[str]=[],   # optional, use to filter dataframe else asign defaults
+    ):
+        """
         Initialize the feature importance analyzer.
         
         Args:
-            df (DataFrame): Spark DataFrame containing features and target
-            target_col (str): Name of the target column
-            features_col (str): Name of the assembled features column (default: "features")
+            data: Spark DataFrame containing features and target
+            realm: Domain/realm for the analysis
+            target_col: Name of the target column
+            features_col: Name of the assembled features column
+            feature_names: List of feature names to use
+            stages: List of pipeline stages to initialize with
         """
-        self.df = df
-        self.target_col = target_col
-        self.features_col = features_col
+        super().__init__(
+#             desc=self.__desc__,
+            realm=realm,
+
+        )
+        self.data = data
+        self.realm= realm
+        self.target=target_col
+        # if isinstance(features_col,str) and "".join(features_col.split())!="":
+        #     self.features = features_col
+        self.features = features_col if isinstance(features_col,str) \
+                                        and "".join(features_col.split())!="" \
+                                    else "features" 
+        self.featNames = feature_names if isinstance(feature_names,list) \
+                                        and len(feature_names)>0 else []
+        # if isinstance(feature_names,list) and len(feature_names)>0:
+        #     self.featNames= feature_names
         self._pandas_df = None
-        self._feature_names = None
         self._shap_values = None
         self._importance_results = {}
         
+    
+        __s_fn_id__ = f"{self.__name__} method {inspect.currentframe().f_code.co_name}" # <__init__>"
+
+        try:
+            self.cwd=os.path.dirname(__file__)
+            self._pkgConf = configparser.ConfigParser()
+            self._pkgConf.read(os.path.join(self.cwd,__ini_fname__))
+
+            self._projHome = self._pkgConf.get("CWDS","PROJECT")
+            sys.path.insert(1,self._projHome)
+            
+            ''' innitialize the logger '''
+            from dongcha.utils import Logger as logs
+            self._logger = logs.get_logger(
+                cwd=self._projHome,
+                app=self.__app__, 
+                module=self.__module__,
+                package=self.__package__,
+                ini_file=self.__ini_fname__)
+
+            ''' set a new logger section '''
+            self._logger.info('########################################################')
+            self._logger.info("%s Class %s",self.__name__, self.__class__.__name__)
+
+            ''' Set the wrangler root directory '''
+            self._appDir = self._pkgConf.get("CWDS",self.__app__)
+            ''' get the path to the input and output data '''
+            self._appConf = configparser.ConfigParser()
+            self._appConf.read(os.path.join(self._appDir, self.__conf_fname__))
+
+            _done_str = f"{self.__name__} initialization for {self.__module__} module package "
+            _done_str+= f"{self.__package__} in {self.__app__} done.\nStart workloads: {self.__desc__}."
+            self._logger.debug("%s",_done_str)
+            print(_done_str)
+
+        except Exception as err:
+            self._logger.error("%s %s \n",__s_fn_id__, err)
+            self._logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return None
+
     class BaseImportanceMethod(Transformer):
         """Base class for feature importance methods"""
+        features_col = Param(Params._dummy(), "features_col", 
+                           "Name of the features column", TypeConverters.toString)
+        feature_names = Param(Params._dummy(), "feature_names", 
+                            "feature column names", TypeConverters.toListString)
+        target_col = Param(Params._dummy(), "target_col",
+                         "target column name", TypeConverters.toString)
+        
         @keyword_only
-        def __init__(self):
+        def __init__(self, features_col: str = "features", feature_names: List[str] = [],
+                     target_col: str = "target", logger=None):
             super().__init__()
-            
-        def _transform(self, dataset: DataFrame) -> DataFrame:
+            self.logger = logger
+            self._setDefault(features_col="features", feature_names=[], target_col="target")
+            kwargs = self._input_kwargs
+            if 'logger' in kwargs:
+                del kwargs['logger']
+            self._set(**kwargs)
+
+        @keyword_only
+        def setParams(self, features_col="features", feature_names=[], 
+                     target_col="target", logger=None):
+            kwargs = self._input_kwargs
+            if 'logger' in kwargs:
+                self.logger = kwargs.pop('logger')
+            self._set(**kwargs)
+            return self
+
+        def _transform(self, dataset):
             raise NotImplementedError
-            
-        def _get_feature_names(self, dataset: DataFrame) -> List[str]:
-            """Extract feature names from VectorAssembler output"""
-            if hasattr(self, "_feature_names"):
-                return self._feature_names
-                
-            # Get the first row of features
-            sample = dataset.select(self.features_col).first()[0]
-            if hasattr(sample, "indices"):  # Sparse vector
-                size = sample.size
-            else:  # Dense vector
-                size = len(sample)
-                
-            return [f"feature_{i}" for i in range(size)]
     
     class SHAPAnalyzer(BaseImportanceMethod):
-        """
-        Compute SHAP (SHapley Additive exPlanations) values for feature importance.
-        Supports both classification and regression problems.
-        """
+        """Compute SHAP (SHapley Additive exPlanations) values for feature importance"""
         model_type = Param(Params._dummy(), "model_type", "Type of model (classifier/regressor)")
         algorithm = Param(Params._dummy(), "algorithm", "Algorithm to use (xgboost, lightgbm, randomforest)")
         n_samples = Param(Params._dummy(), "n_samples", "Number of samples to use for SHAP calculation")
-        
+
         @keyword_only
-        def __init__(self, model_type: str = "classifier", algorithm: str = "xgboost", 
-                    n_samples: int = 1000):
-            super().__init__()
+        def __init__(
+            self, 
+            model_type: str = "classifier", 
+            algorithm: str = "xgboost", 
+            n_samples: int = 1000, 
+            features_col: str = "features",
+            feature_names: List[str] = [],
+            target_col: str = "target", 
+            logger=None, 
+            **kwargs,
+        ):
+            ''' change the BaseImportanceMethod '''
+            super().__init__(
+                features_col=features_col, 
+                feature_names=feature_names, 
+                target_col=target_col, 
+                logger=logger
+            )
+            # super().__init__(**kwargs)
             self._setDefault(model_type="classifier", algorithm="xgboost", n_samples=1000)
             kwargs = self._input_kwargs
+            if 'logger' in kwargs:
+                del kwargs['logger']
             self._set(**kwargs)
-            
-        def _transform(self, dataset: DataFrame) -> DataFrame:
-            model_type = self.getOrDefault(self.model_type)
-            algorithm = self.getOrDefault(self.algorithm)
-            n_samples = self.getOrDefault(self.n_samples)
-            
-            # Convert to pandas for SHAP analysis
-            pdf = self._prepare_pandas_data(dataset)
-            X = pdf.drop(columns=[self.target_col])
-            y = pdf[self.target_col]
-            
-            # Train appropriate model
-            model = self._train_model(X, y, model_type, algorithm)
-            
-            # Compute SHAP values
-            explainer = shap.Explainer(model, X)
-            shap_values = explainer(X)
-            
-            # Store results
-            self._shap_values = shap_values
-            self._feature_names = list(X.columns)
-            
-            # Return original DataFrame (SHAP results are stored in the analyzer)
-            return dataset
-            
-        def _prepare_pandas_data(self, dataset: DataFrame) -> pd.DataFrame:
-            """Convert Spark DataFrame to pandas for SHAP analysis"""
-            # Convert vector features to columns
-            assembler = VectorAssembler(
-                inputCols=[col for col in dataset.columns if col != self.target_col],
-                outputCol=self.features_col
-            )
-            assembled = assembler.transform(dataset)
-            
-            # Convert to pandas
-            pdf = assembled.select(self.features_col, self.target_col).toPandas()
-            
-            # Convert vector to columns
-            features = np.array([x.toArray() for x in pdf[self.features_col]])
-            feature_cols = [f"feature_{i}" for i in range(features.shape[1])]
-            pdf[feature_cols] = pd.DataFrame(features, index=pdf.index)
-            
-            return pdf.drop(columns=[self.features_col])
-            
+
         def _train_model(self, X: pd.DataFrame, y: pd.Series, 
                         model_type: str, algorithm: str) -> BaseEstimator:
             """Train an appropriate model for SHAP analysis"""
+            __s_fn_id__ = f"{self.__class__.__name__} method {inspect.currentframe().f_code.co_name}"
+            
+            # First detect if we should force regression
+            if len(np.unique(y)) > 100:  # heuristic for continuous values
+                model_type = "regressor"
+                if self.logger:
+                    self.logger.warning("%s switching to regressor for continuous target (found %d unique values)",
+                                        __s_fn_id__, len(np.unique(y)))
+            
             if model_type == "classifier":
+                # Ensure y contains integers for classification
+                y = y.astype(int)
                 if algorithm == "xgboost":
                     model = XGBClassifier(random_state=42)
                 elif algorithm == "lightgbm":
@@ -182,6 +241,104 @@ class mlWorkLoads:
                     
             model.fit(X, y)
             return model
+
+        def _transform(self, dataset: DataFrame) -> DataFrame:
+            __s_fn_id__ = f"class {self.__class__.__name__}"
+
+            try:
+                _model_type = self.getOrDefault(self.model_type)
+                _algorithm = self.getOrDefault(self.algorithm)
+                _n_samples = self.getOrDefault(self.n_samples)
+                _target_col = self.getOrDefault(self.target_col)
+                
+                # Convert to pandas for SHAP analysis
+                pdf = self._prepare_pandas_data(dataset)
+                X = pdf.drop(columns=[_target_col])
+                y = pdf[_target_col]
+                
+                # Train appropriate model
+                model = self._train_model(X, y, _model_type, _algorithm)
+                
+                # Compute SHAP values
+                explainer = shap.Explainer(model, X)
+                self._shap_values = explainer(X)
+                self._feature_names = list(X.columns)
+                
+                if self.logger:
+                    self.logger.info("SHAP values computed successfully")
+
+            except Exception as err:
+                if self.logger:
+                    self.logger.error("%s %s \n", __s_fn_id__, err)
+                    self.logger.debug(traceback.format_exc())
+                raise RuntimeError(f"[Error]{__s_fn_id__}: {err}")
+    
+            return dataset
+            
+        def _prepare_pandas_data(self, dataset: DataFrame) -> pd.DataFrame:
+            """Convert Spark DataFrame to pandas for SHAP analysis with proper vector handling"""
+            _features_col = self.getOrDefault(self.features_col)
+            _target_col = self.getOrDefault(self.target_col)
+            _feature_names = self.getOrDefault(self.feature_names)
+            
+            # Handle vector-assembled features
+            if _features_col in dataset.columns:
+                # Convert vector to array of floats
+                dataset = dataset.withColumn(_features_col, vector_to_array(_features_col))
+                
+                # Convert to pandas and explode vector
+                pdf = dataset.select(_features_col, _target_col).toPandas()
+                features = np.array([x for x in pdf[_features_col]])
+                feature_cols = [f"feature_{i}" for i in range(features.shape[1])]
+                pdf[feature_cols] = pd.DataFrame(features, index=pdf.index)
+                return pdf.drop(columns=[_features_col])
+            
+            # Handle individual columns (including vector-encoded columns)
+            if not _feature_names:
+                _feature_names = [col for col in dataset.columns if col != _target_col]
+            
+            # Convert all vector columns to arrays first
+            vector_cols = [col for col in _feature_names 
+                          if str(dataset.schema[col].dataType).startswith("Vector")]
+            
+            if vector_cols:
+                dataset = dataset.select(
+                    [vector_to_array(col).alias(col) if col in vector_cols else col 
+                     for col in _feature_names] + [_target_col]
+                )
+            
+            # Convert to pandas and ensure numeric types
+            pdf = dataset.select(_feature_names + [_target_col]).toPandas()
+            
+            # Convert all feature columns to numeric
+            for col in _feature_names:
+                if pdf[col].dtype == object:
+                    try:
+                        # Handle array columns that became object dtype
+                        if isinstance(pdf[col].iloc[0], (list, np.ndarray)):
+                            # Explode array columns
+                            arr_cols = {f"{col}_{i}": pdf[col].str[i] for i in range(len(pdf[col].iloc[0]))}
+                            pdf = pd.concat([pdf.drop(columns=[col]), pd.DataFrame(arr_cols)], axis=1)
+                        else:
+                            pdf[col] = pd.to_numeric(pdf[col], errors='coerce')
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.warning(f"Could not convert column {col} to numeric: {str(e)}")
+                        pdf[col] = pd.to_numeric(pdf[col], errors='coerce')
+            
+            return pdf
+
+        def get_shap_feature_importance(self) -> pd.DataFrame:
+            """Return DataFrame with SHAP feature importance"""
+            if self._shap_values is None:
+                raise ValueError("SHAP values not computed. Run transform first.")
+                
+            importance = pd.DataFrame({
+                'feature': self._feature_names,
+                'shap_importance': np.abs(self._shap_values.values).mean(axis=0)
+            }).sort_values('shap_importance', ascending=False)
+            
+            return importance
             
         def get_shap_summary_plot(self, plot_type: str = "dot", **kwargs):
             """Generate SHAP summary plot"""
@@ -189,22 +346,22 @@ class mlWorkLoads:
                 raise ValueError("SHAP values not computed. Run transform first.")
                 
             plt.figure()
-            shap.summary_plot(self._shap_values, plot_type=plot_type, **kwargs)
+            shap.summary_plot(self._shap_values, plot_type=plot_type, show=False, **kwargs)
             plt.tight_layout()
             return plt
             
-        def get_shap_feature_importance(self) -> pd.DataFrame:
-            """Return DataFrame with SHAP feature importance"""
-            if self._shap_values is None:
-                raise ValueError("SHAP values not computed. Run transform first.")
+        # def get_shap_feature_importance(self) -> pd.DataFrame:
+        #     """Return DataFrame with SHAP feature importance"""
+        #     if self._shap_values is None:
+        #         raise ValueError("SHAP values not computed. Run transform first.")
                 
-            # Calculate mean absolute SHAP values
-            importance = pd.DataFrame({
-                'feature': self._feature_names,
-                'shap_importance': np.abs(self._shap_values.values).mean(axis=0)
-            }).sort_values('shap_importance', ascending=False)
+        #     # Calculate mean absolute SHAP values
+        #     importance = pd.DataFrame({
+        #         'feature': self._feature_names,
+        #         'shap_importance': np.abs(self._shap_values.values).mean(axis=0)
+        #     }).sort_values('shap_importance', ascending=False)
             
-            return importance
+        #     return importance
     
     class PermutationImportanceAnalyzer(BaseImportanceMethod):
         """
@@ -216,38 +373,66 @@ class mlWorkLoads:
         
         @keyword_only
         def __init__(self, model_type: str = "classifier", algorithm: str = "randomforest",
-                    n_repeats: int = 5):
+                    n_repeats: int = 5, logger=None):
             super().__init__()
+            self.logger=logger
             self._setDefault(model_type="classifier", algorithm="randomforest", n_repeats=5)
             kwargs = self._input_kwargs
+            if 'logger' in kwargs:
+                del kwargs['logger']
             self._set(**kwargs)
             
+        @keyword_only
+        def setParams(self, model_type: str = "classifier", algorithm: str = "xgboost",
+                      n_samples: int = 1000, feature_names: List[str]=[], target_col: str = None, 
+                      logger=None):
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            if 'logger' in kwargs:
+                self.logger = kwargs.pop('logger')
+            self._set(**kwargs)
+            return self
+
         def _transform(self, dataset: DataFrame) -> DataFrame:
-            model_type = self.getOrDefault(self.model_type)
-            algorithm = self.getOrDefault(self.algorithm)
-            n_repeats = self.getOrDefault(self.n_repeats)
+
+            __s_fn_id__ = f"class {self.__class__.__name__}"
+
+            try:
+                model_type = self.getOrDefault(self.model_type)
+                algorithm = self.getOrDefault(self.algorithm)
+                n_repeats = self.getOrDefault(self.n_repeats)
+                
+                # Convert to pandas
+                pdf = self._prepare_pandas_data(dataset)
+                X = pdf.drop(columns=[self.target_col])
+                y = pdf[self.target_col]
+                
+                # Train model
+                model = self._train_model(X, y, model_type, algorithm)
+                
+                # Compute permutation importance
+                result = permutation_importance(
+                    model, X, y, n_repeats=n_repeats, random_state=42
+                )
+                
+                # Store results
+                self._importance_results = {
+                    'importances_mean': result.importances_mean,
+                    'importances_std': result.importances_std,
+                    'feature_names': list(X.columns)
+                }
             
-            # Convert to pandas
-            pdf = self._prepare_pandas_data(dataset)
-            X = pdf.drop(columns=[self.target_col])
-            y = pdf[self.target_col]
-            
-            # Train model
-            model = self._train_model(X, y, model_type, algorithm)
-            
-            # Compute permutation importance
-            result = permutation_importance(
-                model, X, y, n_repeats=n_repeats, random_state=42
-            )
-            
-            # Store results
-            self._importance_results = {
-                'importances_mean': result.importances_mean,
-                'importances_std': result.importances_std,
-                'feature_names': list(X.columns)
-            }
-            
-            return dataset
+            except Exception as err:
+                if hasattr(self, 'logger') and self.logger is not None:
+                    self.logger.error("%s %s \n", __s_fn_id__, err)
+                    self.logger.debug(traceback.format_exc())
+                print("[Error]"+__s_fn_id__, err)
+                raise
+    
+            finally:
+                if hasattr(self, 'logger') and self.logger is not None:
+                    self.logger.info("Explained variance ratio")
+                return dataset
             
         def _prepare_pandas_data(self, dataset: DataFrame) -> pd.DataFrame:
             """Convert Spark DataFrame to pandas for analysis"""
@@ -381,13 +566,17 @@ class mlWorkLoads:
     
     # Builder methods
     def add_shap_analysis(self, model_type: str = "classifier", 
-                         algorithm: str = "xgboost", n_samples: int = 1000):
+                         algorithm: str = "xgboost", n_samples: int = 1000) -> 'mlWorkLoads':
         """Add SHAP analysis to the pipeline"""
-        self.pipeline_stages.append(
+        self.stages.append(
             self.SHAPAnalyzer(
                 model_type=model_type,
                 algorithm=algorithm,
-                n_samples=n_samples
+                n_samples=n_samples,
+                features_col=self.features,
+                feature_names=self.featNames,
+                target_col=self.target,
+                logger=self._logger,
             )
         )
         return self
@@ -395,11 +584,12 @@ class mlWorkLoads:
     def add_permutation_importance(self, model_type: str = "classifier",
                                   algorithm: str = "randomforest", n_repeats: int = 5):
         """Add permutation importance analysis to the pipeline"""
-        self.pipeline_stages.append(
+        self.stages.append(
             self.PermutationImportanceAnalyzer(
                 model_type=model_type,
                 algorithm=algorithm,
-                n_repeats=n_repeats
+                n_repeats=n_repeats,
+                logger=self._logger,
             )
         )
         return self
@@ -407,7 +597,7 @@ class mlWorkLoads:
     def add_model_importance(self, model_type: str = "classifier",
                            algorithm: str = "randomforest"):
         """Add model-specific feature importance to the pipeline"""
-        self.pipeline_stages.append(
+        self.stages.append(
             self.ModelFeatureImportance(
                 model_type=model_type,
                 algorithm=algorithm
@@ -419,47 +609,77 @@ class mlWorkLoads:
         """Add Chi-Squared feature selection (requires categorical target)"""
         if not self.target_col:
             raise ValueError("ChiSqSelector requires target_col to be set")
-        self.pipeline_stages.append(self.ChiSqFeatureSelector(k=k))
+        self.stages.append(self.ChiSqFeatureSelector(k=k))
         return self
 
     def build(self):
         """Finalize and return the pipeline model"""
-        return Pipeline(stages=self.pipeline_stages)
+        return Pipeline(stages=self.stages)
         
-    def exec_pipe_with_stages(self):
+    def exec_pipe_with_stages(self) -> tuple:
         """
-        Executes pipeline step-by-step, collecting importance results from each stage.
-        
+        Executes pipeline step-by-step, collecting importance results and plots from each stage.
+    
         Returns:
-            - intermediates (dict): {"stage_name": intermediate_df}
-            - final_df (DataFrame): Final transformed output
-            - importance_results (dict): Results from importance analyses
-        """
-        current_df = self.df
-        self.intermediate_results = {}
-        self.importance_results = {}
-        
-        for i, stage in enumerate(self.pipeline_stages):
-            stage_name = f"stage_{i}_{stage.__class__.__name__}"
-            print(f"Executing {stage_name}...")
-            
-            # Apply the current stage
-            current_df = stage.transform(current_df)
-            
-            # Store intermediate result
-            self.intermediate_results[stage_name] = current_df
-            
-            # Collect importance results if available
-            if hasattr(stage, '_shap_values'):
-                self.importance_results['shap'] = {
-                    'values': stage._shap_values,
-                    'feature_names': stage._feature_names
+            tuple: (intermediate_results, final_df, importance_results)
+                intermediate_results: dict of stage_name -> transformed DataFrame
+                final_df: final transformed DataFrame
+                importance_results: dict containing {
+                    'shap': {
+                        'values': shap_values,
+                        'feature_names': list,
+                        'summary_plot': matplotlib.figure.Figure
+                    },
+                    'permutation': {...},
+                    ...
                 }
-            elif hasattr(stage, '_importance_results'):
-                method = stage.__class__.__name__.replace("Analyzer", "").replace("Importance", "").lower()
-                self.importance_results[method] = stage._importance_results
+        """
+    
+        __s_fn_id__ = f"{self.__name__} method {self.__class__.__name__}"
+    
+        try:
+            if self.data is None:
+                raise ValueError("No data provided for pipeline execution")
+            current_df = self.data
+            intermediate_results = {}
+            importance_results = {}
             
-            # Force execution (avoids lazy evaluation issues)
-            current_df.cache().count()  
+            for i, stage in enumerate(self.stages):
+                stage_name = f"stage_{i}_{stage.__class__.__name__}"
+                self._logger.info(f"Executing {stage_name}...")
+                
+                current_df = stage.transform(current_df)
+                intermediate_results[stage_name] = current_df
+                
+                # Collect importance results if available
+                if hasattr(stage, '_shap_values'):
+                    # Generate SHAP summary plot if the method exists
+                    if hasattr(stage, 'get_shap_summary_plot'):
+                        try:
+                            plt = stage.get_shap_summary_plot()
+                            importance_results['shap'] = {
+                                'values': stage._shap_values,
+                                'feature_names': getattr(stage, '_feature_names', []),
+                                'summary_plot': plt.gcf()  # Get the current figure
+                            }
+                            plt.close()  # Close the plot to free memory
+                        except Exception as plot_err:
+                            self._logger.warning(f"Failed to generate SHAP plot: {plot_err}")
+                    else:
+                        importance_results['shap'] = {
+                            'values': stage._shap_values,
+                            'feature_names': getattr(stage, '_feature_names', [])
+                        }
+                elif hasattr(stage, '_importance_results'):
+                    method = stage.__class__.__name__.replace("Analyzer", "").lower()
+                    importance_results[method] = stage._importance_results
+                
+                current_df.cache().count()
         
-        return self.intermediate_results, current_df, self.importance_results
+        except Exception as err:
+            self._logger.error("%s %s \n",__s_fn_id__, err)
+            self._logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+    
+        finally:
+            return intermediate_results, current_df, importance_results

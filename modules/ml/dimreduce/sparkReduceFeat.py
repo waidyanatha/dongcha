@@ -102,7 +102,7 @@ class mlWorkLoads(attr.properties):
         self.features=features_col
         self.mode = mode
     
-        __s_fn_id__ = f"{self.__name__} function {self.__class__.__name__}" #<__init__>"
+        __s_fn_id__ = f"{self.__name__} method {self.__class__.__name__}"
 
         try:
             self.cwd=os.path.dirname(__file__)
@@ -201,7 +201,7 @@ class mlWorkLoads(attr.properties):
                 if hasattr(self, 'logger') and self.logger is not None:
                     self.logger.info(f"PCA: Explained variance ratio: {explained_var:.2%}")
 
-            return model.transform(dataset)
+                return model.transform(dataset)
 
     # --------------------------
     # Non-Spark Methods (require pandas)

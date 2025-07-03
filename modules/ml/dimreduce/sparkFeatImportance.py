@@ -179,7 +179,17 @@ class mlWorkLoads(attr.properties):
             raise NotImplementedError
     
     class SHAPAnalyzer(BaseImportanceMethod):
-        """Compute SHAP (SHapley Additive exPlanations) values for feature importance"""
+        """Compute SHAP (SHapley Additive exPlanations) values for feature importance
+
+        * Shapley values, to assign importance values to each feature contribution in a model.
+        * Beeswarm plot provides both local (for each instance) and 
+            global (overall feature importance) insights into the model's behavior.
+            * Features with a wider spread of points (more horizontal variation) 
+                on the x-axis have a greater overall impact on the model's predictions.
+            * Features with points clustered tightly around zero have less impact.
+            * Color of the points indicates whether high or low feature values tend to push 
+                the prediction in a positive or negative direction.
+        """
         model_type = Param(Params._dummy(), "model_type", "Type of model (classifier/regressor)")
         algorithm = Param(Params._dummy(), "algorithm", "Algorithm to use (xgboost, lightgbm, randomforest)")
         n_samples = Param(Params._dummy(), "n_samples", "Number of samples to use for SHAP calculation")
@@ -349,114 +359,63 @@ class mlWorkLoads(attr.properties):
             shap.summary_plot(self._shap_values, plot_type=plot_type, show=False, **kwargs)
             plt.tight_layout()
             return plt
-            
-        # def get_shap_feature_importance(self) -> pd.DataFrame:
-        #     """Return DataFrame with SHAP feature importance"""
-        #     if self._shap_values is None:
-        #         raise ValueError("SHAP values not computed. Run transform first.")
-                
-        #     # Calculate mean absolute SHAP values
-        #     importance = pd.DataFrame({
-        #         'feature': self._feature_names,
-        #         'shap_importance': np.abs(self._shap_values.values).mean(axis=0)
-        #     }).sort_values('shap_importance', ascending=False)
-            
-        #     return importance
-    
+
+
     class PermutationImportanceAnalyzer(BaseImportanceMethod):
-        """
-        Compute permutation importance for feature evaluation.
+        """Compute permutation importance for feature evaluation.
+
+        * a model-agnostic technique used to assess the importance of individual features in a ML model
+        * bar plot visually represents how much a model's performance degrades 
+            when a specific feature is randomly shuffled
+                * Features with long bars are considered important - shuffling them significantly 
+                    reduces the model's ability to make accurate predictions.
+                * Features with short bars are less important -  permutation doesn't 
+                    substantially affect model performance.
+                * Feature with negative importance score suggests that the model might be 
+                    making better predictions with that feature randomly shuffled. 
         """
         model_type = Param(Params._dummy(), "model_type", "Type of model (classifier/regressor)")
         algorithm = Param(Params._dummy(), "algorithm", "Algorithm to use (xgboost, lightgbm, randomforest)")
         n_repeats = Param(Params._dummy(), "n_repeats", "Number of repeats for permutation importance")
         
         @keyword_only
-        def __init__(self, model_type: str = "classifier", algorithm: str = "randomforest",
-                    n_repeats: int = 5, logger=None):
-            super().__init__()
-            self.logger=logger
+        def __init__(
+            self, 
+            model_type: str = "classifier", 
+            algorithm: str = "randomforest",
+            n_repeats: int = 5,
+            features_col: str = "features",
+            feature_names: List[str] = [],
+            target_col: str = "target", 
+            logger=None, 
+            **kwargs,
+        ):
+            super().__init__(
+                features_col=features_col,
+                feature_names=feature_names,
+                target_col=target_col,
+                logger=logger
+            )
             self._setDefault(model_type="classifier", algorithm="randomforest", n_repeats=5)
             kwargs = self._input_kwargs
             if 'logger' in kwargs:
                 del kwargs['logger']
             self._set(**kwargs)
-            
-        @keyword_only
-        def setParams(self, model_type: str = "classifier", algorithm: str = "xgboost",
-                      n_samples: int = 1000, feature_names: List[str]=[], target_col: str = None, 
-                      logger=None):
-            kwargs = self._input_kwargs
-            # Remove logger from kwargs before _set
-            if 'logger' in kwargs:
-                self.logger = kwargs.pop('logger')
-            self._set(**kwargs)
-            return self
-
-        def _transform(self, dataset: DataFrame) -> DataFrame:
-
-            __s_fn_id__ = f"class {self.__class__.__name__}"
-
-            try:
-                model_type = self.getOrDefault(self.model_type)
-                algorithm = self.getOrDefault(self.algorithm)
-                n_repeats = self.getOrDefault(self.n_repeats)
-                
-                # Convert to pandas
-                pdf = self._prepare_pandas_data(dataset)
-                X = pdf.drop(columns=[self.target_col])
-                y = pdf[self.target_col]
-                
-                # Train model
-                model = self._train_model(X, y, model_type, algorithm)
-                
-                # Compute permutation importance
-                result = permutation_importance(
-                    model, X, y, n_repeats=n_repeats, random_state=42
-                )
-                
-                # Store results
-                self._importance_results = {
-                    'importances_mean': result.importances_mean,
-                    'importances_std': result.importances_std,
-                    'feature_names': list(X.columns)
-                }
-            
-            except Exception as err:
-                if hasattr(self, 'logger') and self.logger is not None:
-                    self.logger.error("%s %s \n", __s_fn_id__, err)
-                    self.logger.debug(traceback.format_exc())
-                print("[Error]"+__s_fn_id__, err)
-                raise
     
-            finally:
-                if hasattr(self, 'logger') and self.logger is not None:
-                    self.logger.info("Explained variance ratio")
-                return dataset
-            
-        def _prepare_pandas_data(self, dataset: DataFrame) -> pd.DataFrame:
-            """Convert Spark DataFrame to pandas for analysis"""
-            # Convert vector features to columns
-            assembler = VectorAssembler(
-                inputCols=[col for col in dataset.columns if col != self.target_col],
-                outputCol=self.features_col
-            )
-            assembled = assembler.transform(dataset)
-            
-            # Convert to pandas
-            pdf = assembled.select(self.features_col, self.target_col).toPandas()
-            
-            # Convert vector to columns
-            features = np.array([x.toArray() for x in pdf[self.features_col]])
-            feature_cols = [f"feature_{i}" for i in range(features.shape[1])]
-            pdf[feature_cols] = pd.DataFrame(features, index=pdf.index)
-            
-            return pdf.drop(columns=[self.features_col])
-            
         def _train_model(self, X: pd.DataFrame, y: pd.Series, 
                         model_type: str, algorithm: str) -> BaseEstimator:
             """Train an appropriate model for permutation importance"""
+            __s_fn_id__ = f"{self.__class__.__name__} method {inspect.currentframe().f_code.co_name}"
+            
+            # Auto-detect regression if target has many unique values
+            if len(np.unique(y)) > 100:
+                model_type = "regressor"
+                if self.logger:
+                    self.logger.warning("%s switching to regressor for continuous target (found %d unique values)",
+                                      __s_fn_id__, len(np.unique(y)))
+            
             if model_type == "classifier":
+                y = y.astype(int)  # Ensure y contains integers for classification
                 if algorithm == "xgboost":
                     model = XGBClassifier(random_state=42)
                 elif algorithm == "lightgbm":
@@ -473,88 +432,311 @@ class mlWorkLoads(attr.properties):
                     
             model.fit(X, y)
             return model
+    
+        def _transform(self, dataset: DataFrame) -> DataFrame:
+            __s_fn_id__ = f"{self.__class__.__name__} method {inspect.currentframe().f_code.co_name}"
+        
+            try:
+                _model_type = self.getOrDefault(self.model_type)
+                _algorithm = self.getOrDefault(self.algorithm)
+                _n_repeats = self.getOrDefault(self.n_repeats)
+                _target_col = self.getOrDefault(self.target_col)
+                
+                # Convert to pandas
+                pdf = self._prepare_pandas_data(dataset)
+                X = pdf.drop(columns=[_target_col])
+                y = pdf[_target_col]
+                
+                # Train model
+                model = self._train_model(X, y, _model_type, _algorithm)
+                
+                # Compute permutation importance
+                result = permutation_importance(
+                    model, X, y, n_repeats=_n_repeats, random_state=42
+                )
+                
+                # First store the basic results
+                self._importance_results = {
+                    'importances_mean': result.importances_mean,
+                    'importances_std': result.importances_std,
+                    'feature_names': list(X.columns),
+                    'summary_plot': None  # Will be populated later
+                }
+                
+                # Now generate and store the plot
+                plt = self.plot_permutation_importance()
+                self._importance_results['summary_plot'] = plt.gcf()
+                plt.close()
+                
+                if self.logger:
+                    self.logger.info("Permutation importance computed successfully")
+        
+            except Exception as err:
+                if self.logger:
+                    self.logger.error("%s %s \n", __s_fn_id__, err)
+                    self.logger.debug(traceback.format_exc())
+                raise RuntimeError(f"[Error]{__s_fn_id__}: {err}")
+        
+            return dataset
+
+        def _prepare_pandas_data(self, dataset: DataFrame) -> pd.DataFrame:
+            """Convert Spark DataFrame to pandas with proper vector handling"""
+            _features_col = self.getOrDefault(self.features_col)
+            _target_col = self.getOrDefault(self.target_col)
+            _feature_names = self.getOrDefault(self.feature_names)
             
+            # Handle vector-assembled features
+            if _features_col in dataset.columns:
+                dataset = dataset.withColumn(_features_col, vector_to_array(_features_col))
+                pdf = dataset.select(_features_col, _target_col).toPandas()
+                features = np.array([x for x in pdf[_features_col]])
+                feature_cols = [f"feature_{i}" for i in range(features.shape[1])]
+                pdf[feature_cols] = pd.DataFrame(features, index=pdf.index)
+                return pdf.drop(columns=[_features_col])
+            
+            # Handle individual columns
+            if not _feature_names:
+                _feature_names = [col for col in dataset.columns if col != _target_col]
+            
+            # Convert vector columns to arrays
+            vector_cols = [col for col in _feature_names 
+                          if str(dataset.schema[col].dataType).startswith("Vector")]
+            
+            if vector_cols:
+                dataset = dataset.select(
+                    [vector_to_array(col).alias(col) if col in vector_cols else col 
+                     for col in _feature_names] + [_target_col]
+                )
+            
+            # Convert to pandas and ensure numeric types
+            pdf = dataset.select(_feature_names + [_target_col]).toPandas()
+            
+            for col in _feature_names:
+                if pdf[col].dtype == object:
+                    try:
+                        if isinstance(pdf[col].iloc[0], (list, np.ndarray)):
+                            arr_cols = {f"{col}_{i}": pdf[col].str[i] for i in range(len(pdf[col].iloc[0]))}
+                            pdf = pd.concat([pdf.drop(columns=[col]), pd.DataFrame(arr_cols)], axis=1)
+                        else:
+                            pdf[col] = pd.to_numeric(pdf[col], errors='coerce')
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.warning(f"Could not convert column {col} to numeric: {str(e)}")
+                        pdf[col] = pd.to_numeric(pdf[col], errors='coerce')
+            
+            return pdf
+    
         def get_permutation_importance(self) -> pd.DataFrame:
             """Return DataFrame with permutation feature importance"""
-            if not self._importance_results:
+            if not hasattr(self, '_importance_results') or self._importance_results is None:
                 raise ValueError("Permutation importance not computed. Run transform first.")
+            
+            if 'importances_mean' not in self._importance_results:
+                raise ValueError("Importance values not found in results")
                 
-            importance = pd.DataFrame({
+            return pd.DataFrame({
                 'feature': self._importance_results['feature_names'],
                 'importance_mean': self._importance_results['importances_mean'],
                 'importance_std': self._importance_results['importances_std']
             }).sort_values('importance_mean', ascending=False)
             
-            return importance
-            
-        def plot_permutation_importance(self, top_n: int = 20):
+        def plot_permutation_importance(self, top_n: int = 20, **kwargs):
             """Plot permutation importance results"""
             importance_df = self.get_permutation_importance()
             top_features = importance_df.head(top_n)
             
             plt.figure(figsize=(10, 6))
-            plt.barh(top_features['feature'], top_features['importance_mean'],
-                    xerr=top_features['importance_std'], capsize=5)
+            plt.barh(
+                top_features['feature'], 
+                top_features['importance_mean'],
+                xerr=top_features['importance_std'], 
+                capsize=5,
+                **kwargs
+            )
             plt.xlabel('Mean Importance Score')
             plt.title('Permutation Importance (mean ± std)')
             plt.gca().invert_yaxis()
             plt.tight_layout()
             return plt
-    
+
     class ModelFeatureImportance(BaseImportanceMethod):
         """
         Extract feature importance from trained models (Gini/impurity for tree-based models).
+
+        * Analysis is crucial for model interpretability, feature selection, and identifying potential biases
+        * bar plot visually represents how much each feature contributes to a model's predictions
+            * Look for the longest bars, as they represent the features with the highest impact
+            * standard deviation (error bars) indicates how consistent the importance 
+                of a feature is across different data points
         """
         model_type = Param(Params._dummy(), "model_type", "Type of model (classifier/regressor)")
         algorithm = Param(Params._dummy(), "algorithm", "Algorithm to use (xgboost, lightgbm, randomforest)")
         
         @keyword_only
-        def __init__(self, model_type: str = "classifier", algorithm: str = "randomforest"):
-            super().__init__()
+        def __init__(
+            self, 
+            model_type: str = "classifier", 
+            algorithm: str = "randomforest",
+            features_col: str = "features",
+            feature_names: List[str] = [],
+            target_col: str = "target",
+            logger=None,
+            **kwargs
+        ):
+            super().__init__(
+                features_col=features_col,
+                feature_names=feature_names,
+                target_col=target_col,
+                logger=logger
+            )
             self._setDefault(model_type="classifier", algorithm="randomforest")
             kwargs = self._input_kwargs
+            if 'logger' in kwargs:
+                del kwargs['logger']
             self._set(**kwargs)
+    
+        def _train_model(self, X: pd.DataFrame, y: pd.Series,
+                        model_type: str, algorithm: str) -> BaseEstimator:
+            """Train an appropriate model and return feature importances"""
+            __s_fn_id__ = f"{self.__class__.__name__} method {inspect.currentframe().f_code.co_name}"
             
+            # Auto-detect regression if target has many unique values
+            if len(np.unique(y)) > 100:
+                model_type = "regressor"
+                if self.logger:
+                    self.logger.warning("%s switching to regressor for continuous target (found %d unique values)",
+                                      __s_fn_id__, len(np.unique(y)))
+            
+            if model_type == "classifier":
+                y = y.astype(int)
+                if algorithm == "xgboost":
+                    model = XGBClassifier(random_state=42)
+                elif algorithm == "lightgbm":
+                    model = LGBMClassifier(random_state=42)
+                else:
+                    model = RandomForestClassifier(random_state=42)
+            else:  # regression
+                if algorithm == "xgboost":
+                    model = XGBRegressor(random_state=42)
+                elif algorithm == "lightgbm":
+                    model = LGBMRegressor(random_state=42)
+                else:
+                    model = RandomForestRegressor(random_state=42)
+                    
+            model.fit(X, y)
+            return model
+    
         def _transform(self, dataset: DataFrame) -> DataFrame:
-            model_type = self.getOrDefault(self.model_type)
-            algorithm = self.getOrDefault(self.algorithm)
-            
-            # Convert to pandas
-            pdf = self._prepare_pandas_data(dataset)
-            X = pdf.drop(columns=[self.target_col])
-            y = pdf[self.target_col]
-            
-            # Train model
-            model = self._train_model(X, y, model_type, algorithm)
-            
-            # Get feature importance
-            importances = model.feature_importances_
-            feature_names = list(X.columns)
-            
-            # Store results
-            self._importance_results = {
-                'importances': importances,
-                'feature_names': feature_names
-            }
-            
+            __s_fn_id__ = f"{self.__class__.__name__} method {inspect.currentframe().f_code.co_name}"
+        
+            try:
+                _model_type = self.getOrDefault(self.model_type)
+                _algorithm = self.getOrDefault(self.algorithm)
+                _target_col = self.getOrDefault(self.target_col)
+                
+                # Convert to pandas
+                pdf = self._prepare_pandas_data(dataset)
+                X = pdf.drop(columns=[_target_col])
+                y = pdf[_target_col]
+                
+                # Train model
+                model = self._train_model(X, y, _model_type, _algorithm)
+                
+                # Get feature importance
+                importances = model.feature_importances_
+                feature_names = list(X.columns)
+                
+                # First store the basic results
+                self._importance_results = {
+                    'importances': importances,
+                    'feature_names': feature_names,
+                    'summary_plot': None  # Will be populated later
+                }
+                
+                # Now generate and store the plot using the stored results
+                plt = self._generate_importance_plot()
+                self._importance_results['summary_plot'] = plt.gcf()
+                plt.close()
+                
+                if self.logger:
+                    self.logger.info("Model feature importance computed successfully")
+        
+            except Exception as err:
+                if self.logger:
+                    self.logger.error("%s %s \n", __s_fn_id__, err)
+                    self.logger.debug(traceback.format_exc())
+                raise RuntimeError(f"[Error]{__s_fn_id__}: {err}")
+        
             return dataset
+
+        def _prepare_pandas_data(self, dataset: DataFrame) -> pd.DataFrame:
+            """Convert Spark DataFrame to pandas with proper vector handling"""
+            _features_col = self.getOrDefault(self.features_col)
+            _target_col = self.getOrDefault(self.target_col)
+            _feature_names = self.getOrDefault(self.feature_names)
             
+            # Handle vector-assembled features
+            if _features_col in dataset.columns:
+                dataset = dataset.withColumn(_features_col, vector_to_array(_features_col))
+                pdf = dataset.select(_features_col, _target_col).toPandas()
+                features = np.array([x for x in pdf[_features_col]])
+                feature_cols = [f"feature_{i}" for i in range(features.shape[1])]
+                pdf[feature_cols] = pd.DataFrame(features, index=pdf.index)
+                return pdf.drop(columns=[_features_col])
+            
+            # Handle individual columns
+            if not _feature_names:
+                _feature_names = [col for col in dataset.columns if col != _target_col]
+            
+            # Convert vector columns to arrays
+            vector_cols = [col for col in _feature_names 
+                          if str(dataset.schema[col].dataType).startswith("Vector")]
+            
+            if vector_cols:
+                dataset = dataset.select(
+                    [vector_to_array(col).alias(col) if col in vector_cols else col 
+                     for col in _feature_names] + [_target_col]
+                )
+            
+            # Convert to pandas and ensure numeric types
+            pdf = dataset.select(_feature_names + [_target_col]).toPandas()
+            
+            for col in _feature_names:
+                if pdf[col].dtype == object:
+                    try:
+                        if isinstance(pdf[col].iloc[0], (list, np.ndarray)):
+                            arr_cols = {f"{col}_{i}": pdf[col].str[i] for i in range(len(pdf[col].iloc[0]))}
+                            pdf = pd.concat([pdf.drop(columns=[col]), pd.DataFrame(arr_cols)], axis=1)
+                        else:
+                            pdf[col] = pd.to_numeric(pdf[col], errors='coerce')
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.warning(f"Could not convert column {col} to numeric: {str(e)}")
+                        pdf[col] = pd.to_numeric(pdf[col], errors='coerce')
+            
+            return pdf
+    
         def get_model_importance(self) -> pd.DataFrame:
             """Return DataFrame with model feature importance"""
-            if not self._importance_results:
+            if not hasattr(self, '_importance_results') or self._importance_results is None:
                 raise ValueError("Model importance not computed. Run transform first.")
                 
-            importance = pd.DataFrame({
+            if 'importances' not in self._importance_results:
+                raise ValueError("Importance values not found in results")
+                
+            return pd.DataFrame({
                 'feature': self._importance_results['feature_names'],
                 'importance': self._importance_results['importances']
             }).sort_values('importance', ascending=False)
             
-            return importance
+        def _generate_importance_plot(self) -> plt:
+            """Internal method to generate importance plot without validation checks"""
+            importance_df = pd.DataFrame({
+                'feature': self._importance_results['feature_names'],
+                'importance': self._importance_results['importances']
+            }).sort_values('importance', ascending=False)
             
-        def plot_model_importance(self, top_n: int = 20):
-            """Plot model feature importance"""
-            importance_df = self.get_model_importance()
-            top_features = importance_df.head(top_n)
+            top_features = importance_df.head(20)
             
             plt.figure(figsize=(10, 6))
             plt.barh(top_features['feature'], top_features['importance'])
@@ -563,7 +745,17 @@ class mlWorkLoads(attr.properties):
             plt.gca().invert_yaxis()
             plt.tight_layout()
             return plt
-    
+        
+        def plot_model_importance(self, top_n: int = 20, **kwargs):
+            """Public method to plot feature importance"""
+            if not hasattr(self, '_importance_results') or self._importance_results is None:
+                raise ValueError("Model importance not computed. Run transform first.")
+                
+            plt = self._generate_importance_plot()
+            if kwargs:
+                for bar in plt.gca().patches:
+                    bar.set(**kwargs)
+            return plt
     # Builder methods
     def add_shap_analysis(self, model_type: str = "classifier", 
                          algorithm: str = "xgboost", n_samples: int = 1000) -> 'mlWorkLoads':
@@ -589,6 +781,9 @@ class mlWorkLoads(attr.properties):
                 model_type=model_type,
                 algorithm=algorithm,
                 n_repeats=n_repeats,
+                features_col=self.features,
+                feature_names=self.featNames,
+                target_col=self.target,
                 logger=self._logger,
             )
         )
@@ -600,7 +795,11 @@ class mlWorkLoads(attr.properties):
         self.stages.append(
             self.ModelFeatureImportance(
                 model_type=model_type,
-                algorithm=algorithm
+                algorithm=algorithm,
+                features_col=self.features,
+                feature_names=self.featNames,
+                target_col=self.target,
+                logger=self._logger,
             )
         )
         return self

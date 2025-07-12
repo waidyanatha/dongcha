@@ -413,7 +413,7 @@ class mlWorkLoads(attr.properties):
 
                 if not to_drop and hasattr(self, 'logger') and self.logger is not None:
                     self.logger.warning("%s No columns to drop - all meet variance threshold", 
-                                        __s_fn_id__, var_thresh)
+                                        __s_fn_id__, corr_thresh)
 
             except Exception as err:
                 if hasattr(self, 'logger') and self.logger is not None:
@@ -434,6 +434,204 @@ class mlWorkLoads(attr.properties):
                 return dataset.drop("temp_corr_features")
 
 
+    class StandardDeviationFilter(Transformer):
+        """
+        Removes rows where any specified column (or all numeric columns) 
+        exceeds `n_std` standard deviations from the mean.
+        
+        Args:
+            df: PySpark DataFrame.
+            columns: List of column names (optional). If None, uses all numeric columns.
+            n_std: Number of standard deviations (default=3).
+        
+        Returns:
+            Filtered DataFrame.
+        """        
+        n_std = Param(Params._dummy(), "n_std", "number of standard deviations to exclude data")
+        priority_cols = Param(Params._dummy(), "priority_cols", "Columns to preserve", 
+                             typeConverter=TypeConverters.toListString)
+    
+        @keyword_only
+        def __init__(self, n_std=3, priority_cols=None, logger=None):
+            super().__init__()
+            self.logger = logger  # Initialize logger directly, not as a Param
+            priority_cols = [] if priority_cols is None else priority_cols
+            self._setDefault(n_std=n_std, priority_cols=priority_cols)
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            if 'logger' in kwargs:
+                del kwargs['logger']
+            self._set(**kwargs)
+    
+        @keyword_only
+        def setParams(self, n_std=3, priority_cols=None, logger=None):
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            # Handle None for priority_cols in setParams
+            if 'priority_cols' in kwargs and kwargs['priority_cols'] is None:
+                kwargs['priority_cols'] = []
+            if 'logger' in kwargs:
+                self.logger = kwargs.pop('logger')
+            self._set(**kwargs)
+            return self
+    
+        def _transform(self, dataset):
+            __s_fn_id__ = f"class {self.__class__.__name__} transform"
+
+            try:
+                n_std = self.getOrDefault(self.n_std)
+                priority_cols = self.getOrDefault(self.priority_cols)
+                
+                # Use all numeric columns if none specified
+                if priority_cols is None or len(priority_cols)<=0:
+                    priority_cols = [
+                        f.name for f in dataset.schema.fields 
+                        if isinstance(f.dataType,
+                                        (NumericType, DoubleType, FloatType, IntegerType))
+                    ]
+                    self.logger.warning('%s Empty priority columns replaced with all numeric cols:%s',
+                                        __s_fn_id__, ", ".join(priority_cols))
+                    # columns = numeric_cols
+                
+                # Compute mean and std for each column
+                agg_exprs = []
+                for col_name in priority_cols:
+                    agg_exprs.extend([F.mean(F.col(col_name)), F.stddev(F.col(col_name))])
+                
+                stats = dataset.select(*agg_exprs).collect()[0]
+                
+                # Build filter conditions
+                conditions = []
+                for i, col_name in enumerate(priority_cols):
+                    mean_val = stats[2*i]
+                    std_val = stats[2*i + 1]
+                    
+                    if std_val is not None:  # Skip if std=0 or null
+                        lower = mean_val - n_std * std_val
+                        upper = mean_val + n_std * std_val
+                        conditions.append((F.col(col_name) >= lower) & (F.col(col_name) <= upper))
+                
+                # Combine conditions with AND
+                if conditions:
+                    dataset=dataset.filter(*conditions)
+                # else:
+                #     return df  # No filtering if no valid conditions
+                if not isinstance(dataset, DataFrame) or dataset.count()<=0:
+                    raise RuntimeError("Filter failed and returned %s" % type(dataset))
+
+            except Exception as err:
+                if hasattr(self, 'logger') and self.logger is not None:
+                    self.logger.error("%s %s \n", __s_fn_id__, err)
+                    self.logger.debug(traceback.format_exc())
+                print("[Error]"+__s_fn_id__, err)
+                raise
+
+            finally:
+                if hasattr(self, 'logger') and self.logger is not None:
+                    self.logger.info("%s Filter %s columns < %d std, returned %s with %d rows and %d columns", 
+                                     __s_fn_id__, ", ".join(priority_cols), n_std, 
+                                     type(dataset), dataset.count(), len(dataset.columns))
+                return dataset
+
+
+    class CleanTextColumns(Transformer):
+        """
+        Removes non-alphanumeric characters and collapses multiple spaces into single spaces
+        for specified string columns.
+        
+        Args:
+            priority_cols: List of column names to clean (optional). If None, uses all string columns.
+            keep_spaces: Whether to keep spaces (default=True). If False, removes all whitespace.
+        """        
+        priority_cols = Param(Params._dummy(), "priority_cols", "priority columns to clean", 
+                       typeConverter=TypeConverters.toListString)
+        keep_spaces = Param(Params._dummy(), "keep_spaces", "Whether to keep spaces",
+                           typeConverter=TypeConverters.toBoolean)
+    
+        @keyword_only
+        def __init__(self, priority_cols=None, keep_spaces=True, logger=None):
+            super().__init__()
+            self.logger = logger  # Initialize logger directly, not as a Param
+            priority_cols = [] if priority_cols is None else priority_cols
+            self._setDefault(priority_cols=priority_cols, keep_spaces=keep_spaces)
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            if 'logger' in kwargs:
+                del kwargs['logger']
+            self._set(**kwargs)
+    
+        @keyword_only
+        def setParams(self, priority_cols=None, keep_spaces=True, logger=None):
+            kwargs = self._input_kwargs
+            # Handle None for columns in setParams
+            if 'priority_cols' in kwargs and kwargs['priority_cols'] is None:
+                kwargs['priority_cols'] = []
+            if 'logger' in kwargs:
+                self.logger = kwargs.pop('logger')
+            self._set(**kwargs)
+            return self
+    
+        def _transform(self, dataset):
+            __s_fn_id__ = f"class {self.__class__.__name__} transform"
+    
+            try:
+                priority_cols = self.getOrDefault(self.priority_cols)
+                keep_spaces = self.getOrDefault(self.keep_spaces)
+                
+                # Use all string columns if none specified
+                if not priority_cols:
+                    priority_cols = [
+                        f.name for f in dataset.schema.fields 
+                        if isinstance(f.dataType, StringType)
+                    ]
+                    if self.logger:
+                        self.logger.warning('%s Empty columns replaced with all string cols: %s',
+                                            __s_fn_id__, ", ".join(priority_cols))
+                
+                if not priority_cols:
+                    if self.logger:
+                        self.logger.warning('%s No string columns found to clean', __s_fn_id__)
+                    return dataset
+                
+                # Define the cleaning function based on keep_spaces parameter
+                if keep_spaces:
+                    # Keep alphanumeric and single spaces
+                    regex_pattern = r'[^a-zA-Z0-9 ]'
+                    replacement = ''
+                else:
+                    # Remove all non-alphanumeric (including spaces)
+                    regex_pattern = r'[^a-zA-Z0-9]'
+                    replacement = ''
+                
+                # Apply cleaning to each column
+                for col_name in priority_cols:
+                    if col_name in dataset.columns:
+                        # First remove non-alphanumeric (and optionally spaces)
+                        cleaned_col = F.regexp_replace(F.col(col_name), regex_pattern, replacement)
+                        # Then collapse multiple spaces to single space (if keeping spaces)
+                        if keep_spaces:
+                            cleaned_col = F.regexp_replace(cleaned_col, r' +', ' ')
+                        dataset = dataset.withColumn(col_name, cleaned_col)
+                    elif self.logger:
+                        self.logger.warning('%s Column %s not found in dataset', __s_fn_id__, col_name)
+                
+                if not isinstance(dataset, DataFrame):
+                    raise RuntimeError("Transformation failed and returned %s" % type(dataset))
+    
+            except Exception as err:
+                if hasattr(self, 'logger') and self.logger is not None:
+                    self.logger.error("%s %s \n", __s_fn_id__, err)
+                    self.logger.debug(traceback.format_exc())
+                print("[Error]"+__s_fn_id__, err)
+                raise
+    
+            finally:
+                if hasattr(self, 'logger') and self.logger is not None:
+                    self.logger.info("%s Cleaned columns: %s, keep_spaces=%s, returned %s with %d rows", 
+                                     __s_fn_id__, ", ".join(priority_cols), keep_spaces,
+                                     type(dataset), dataset.count())
+                return dataset
+
     class NullHandler(Transformer):
         """Handle null values in numeric and categorical columns"""
         numeric_strategy = Param(Params._dummy(), "numeric_strategy", "Imputation strategy for numerics")
@@ -442,8 +640,6 @@ class mlWorkLoads(attr.properties):
         @keyword_only
         def __init__(self, numeric_strategy="median", categorical_strategy="mode", logger=None):
             super().__init__()
-            # kwargs = self._input_kwargs
-            # self._set(**kwargs)
             self.logger = logger  # Initialize logger directly, not as a Param
             self._setDefault(numeric_strategy=numeric_strategy, categorical_strategy=categorical_strategy)
             kwargs = self._input_kwargs
@@ -532,19 +728,43 @@ class mlWorkLoads(attr.properties):
 
     class CategoricalEncoder(Transformer):
         """Encode categorical variables"""
+
+        exclude_cols = Param(Params._dummy(), "exclude_cols", "columns to exclude with encoding",
+                         typeConverter=TypeConverters.toListString)
+
         @keyword_only
-        def __init__(self, logger=None):
+        def __init__(self, exclude_cols=None, logger=None):
             super().__init__()
-            self.logger = logger
+            self.logger = logger  # Initialize logger directly, not as a Param
+            self._setDefault(exclude_cols=exclude_cols)
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            if 'logger' in kwargs:
+                del kwargs['logger']
+            self._set(**kwargs)
         
+        @keyword_only
+        def setParams(self, exclude_cols=None, logger=None):
+            kwargs = self._input_kwargs
+            # Handle None for exlude_cols in setParams
+            if 'exclude_cols' in kwargs and kwargs['exclude_cols'] is None:
+                kwargs['exclude_cols'] = []
+            # Remove logger from kwargs before _set
+            if 'logger' in kwargs:
+                self.logger = kwargs.pop('logger')
+            self._set(**kwargs)
+            return self
+
         def _transform(self, dataset):
             """
             """
             __s_fn_id__ = f"class {self.__class__.__name__}"
 
             try:
-                categorical_cols = [f.name for f in dataset.schema.fields 
-                                  if str(f.dataType) == 'StringType()']
+                exclude_cols = self.getOrDefault(self.exclude_cols)
+                categorical_cols = [f.name for f in dataset.schema.fields \
+                                        if str(f.dataType) == 'StringType()' \
+                                            and f.name not in exclude_cols]
                 
                 indexers = [StringIndexer(
                     inputCol=col,
@@ -588,30 +808,60 @@ class mlWorkLoads(attr.properties):
     
     class FeatureScaler(Transformer):
         """Standardize numeric features"""
-        @keyword_only
-        def __init__(self, logger=None):
-            super().__init__()
-            self.logger = logger
         
+        output_col = Param(Params._dummy(), "output_col", "Output column name")
+        exclude_cols = Param(Params._dummy(), "exclude_cols", "columns to exclude with encoding",
+                         typeConverter=TypeConverters.toListString)
+
+        @keyword_only
+        def __init__(self, output_col="scaled_features", exclude_cols=None, logger=None):
+            super().__init__()
+            self.logger = logger  # Initialize logger directly, not as a Param
+            self._setDefault(output_col=output_col, exclude_cols=exclude_cols)
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            if 'logger' in kwargs:
+                del kwargs['logger']
+            self._set(**kwargs)
+        
+        @keyword_only
+        def setParams(self, output_col="scaled_features", exclude_cols=None, logger=None):
+            kwargs = self._input_kwargs
+            # Remove logger from kwargs before _set
+            # Handle None for priority_cols in setParams
+            if 'exclude_cols' in kwargs and kwargs['exclude_cols'] is None:
+                kwargs['exclude_cols'] = []
+            if 'logger' in kwargs:
+                self.logger = kwargs.pop('logger')
+            self._set(**kwargs)
+            return self
+
         def _transform(self, dataset):
             """
             """
             __s_fn_id__ = f"class {self.__class__.__name__}"
 
             try:
-                numeric_cols = [f.name for f in dataset.schema.fields 
-                              if isinstance(f.dataType, NumericType)]
+                output_col = self.getOrDefault(self.output_col)
+                exclude_cols = self.getOrDefault(self.exclude_cols)
+                # categorical_cols = [f.name for f in dataset.schema.fields \
+                #                         if str(f.dataType) == 'StringType()' \
+                #                             and f.name not in exclude_cols]
                 
-                scaler = StandardScaler(
-                    inputCol="features",
-                    outputCol="scaled_features",
-                    withStd=True,
-                    withMean=True
-                )
+                numeric_cols = [f.name for f in dataset.schema.fields \
+                                        if isinstance(f.dataType, NumericType) \
+                                            and f.name not in exclude_cols]
                 
                 assembler = VectorAssembler(
                     inputCols=numeric_cols,
                     outputCol="features"
+                )
+                
+                scaler = StandardScaler(
+                    inputCol="features",
+                    outputCol=output_col, #"scaled_features",
+                    withStd=True,
+                    withMean=True
                 )
                 
                 pipeline=Pipeline(stages=[assembler, scaler])
@@ -632,18 +882,104 @@ class mlWorkLoads(attr.properties):
                     self.logger.info("%s first vector has size: %d",
                                      __s_fn_id__, int(dataset.select("features").first()[0].size))
                 return dataset
+
+
+    # class TargetColumnFilter(Transformer):
+    #     """
+    #     Filters the dataset to include only specified priority columns plus the target column.
+    #     If no priority columns are specified, keeps only the target column.
+        
+    #     Args:
+    #         priority_cols: List of column names to keep (optional). If None, keeps only target column.
+    #         target_col: Name of the target column (required).
+    #     """        
+    #     priority_cols = Param(Params._dummy(), "priority_cols", "priority columns to keep", 
+    #                    typeConverter=TypeConverters.toListString)
+    #     target_cols = Param(Params._dummy(), "target_cols", "target columns to always include",
+    #                      typeConverter=TypeConverters.toListString)
     
+    #     @keyword_only
+    #     def __init__(self, priority_cols=None, target_cols=['target'], logger=None):
+    #         super().__init__()
+    #         self.logger = logger  # Initialize logger directly, not as a Param
+    #         priority_cols = [] if priority_cols is None else priority_cols
+    #         self._setDefault(priority_cols=priority_cols, target_cols=target_cols)
+    #         kwargs = self._input_kwargs
+    #         # Remove logger from kwargs before _set
+    #         if 'logger' in kwargs:
+    #             del kwargs['logger']
+    #         self._set(**kwargs)
+    
+    #     @keyword_only
+    #     def setParams(self, priority_cols=None, target_cols=['target'], logger=None):
+    #         kwargs = self._input_kwargs
+    #         # Handle None for columns in setParams
+    #         if 'priority_cols' in kwargs and kwargs['priority_cols'] is None:
+    #             kwargs['priority_cols'] = []
+    #         if 'logger' in kwargs:
+    #             self.logger = kwargs.pop('logger')
+    #         self._set(**kwargs)
+    #         return self
+    
+    #     def _transform(self, dataset):
+    #         __s_fn_id__ = f"class {self.__class__.__name__} transform"
+    
+    #         try:
+    #             priority_cols = self.getOrDefault(self.priority_cols)
+    #             target_cols = self.getOrDefault(self.target_cols)
+                
+    #             if not target_col:
+    #                 raise ValueError("target_col parameter must be specified")
+                    
+    #             # Combine priority columns with target column (remove duplicates)
+    #             columns_to_keep = list(set(priority_cols + target_cols))
+                
+    #             # Verify all columns exist in dataset
+    #             missing_cols = [col for col in columns_to_keep if col not in dataset.columns]
+    #             if missing_cols:
+    #                 raise ValueError(f"The following columns were not found in dataset: {', '.join(missing_cols)}")
+                
+    #             # Filter the dataset to only keep the specified columns
+    #             dataset = dataset.select(*columns_to_keep).drop(*target_cols)
+                
+    #             if not isinstance(dataset, DataFrame):
+    #                 raise RuntimeError("Transformation failed and returned %s" % type(dataset))
+    
+    #         except Exception as err:
+    #             if hasattr(self, 'logger') and self.logger is not None:
+    #                 self.logger.error("%s %s \n", __s_fn_id__, err)
+    #                 self.logger.debug(traceback.format_exc())
+    #             print("[Error]"+__s_fn_id__, err)
+    #             raise
+    
+    #         finally:
+    #             if hasattr(self, 'logger') and self.logger is not None:
+    #                 self.logger.info("%s Kept columns: %s, returned %s with %d rows", 
+    #                                  __s_fn_id__, ", ".join(columns_to_keep),
+    #                                  type(dataset), dataset.count())
+    #             return dataset
+            
+            
     class FeatureAssembler(Transformer):
         """Assemble final feature vector"""
         output_col = Param(Params._dummy(), "output_col", "Output column name")
+        exclude_cols = Param(Params._dummy(), "exclude_cols", "columns to exclude with encoding",
+                         typeConverter=TypeConverters.toListString)
+        scaled_feature_col=Param(Params._dummy(), "scaled_feature_col", "Scalled feature column name")
         
         @keyword_only
-        def __init__(self, output_col="features", logger=None):
+        def __init__(self, 
+                     output_col="features", 
+                     exclude_cols = ['target'], 
+                     scaled_feature_col="scaled_features",
+                     logger=None):
             super().__init__()
             # kwargs = self._input_kwargs
             # self._set(**kwargs)
             self.logger = logger  # Initialize logger directly, not as a Param
-            self._setDefault(output_col=output_col)
+            self._setDefault(output_col=output_col, 
+                             exclude_cols=exclude_cols, 
+                             scaled_feature_col=scaled_feature_col)
             kwargs = self._input_kwargs
             # Remove logger from kwargs before _set
             if 'logger' in kwargs:
@@ -651,12 +987,16 @@ class mlWorkLoads(attr.properties):
             self._set(**kwargs)
         
         @keyword_only
-        def setParams(self, output_col="features", logger=None):
+        def setParams(self, 
+                      output_col="features", 
+                      exclude_cols = ['target'],
+                      scaled_feature_col="scaled_features",
+                      logger=None):
             kwargs = self._input_kwargs
             # Remove logger from kwargs before _set
             # Handle None for priority_cols in setParams
-            # if 'priority_cols' in kwargs and kwargs['priority_cols'] is None:
-            #     kwargs['priority_cols'] = []
+            if 'exclude_cols' in kwargs and kwargs['exclude_cols'] is None:
+                kwargs['exclude_cols'] = []
             if 'logger' in kwargs:
                 self.logger = kwargs.pop('logger')
             self._set(**kwargs)
@@ -667,9 +1007,15 @@ class mlWorkLoads(attr.properties):
             __s_fn_id__ = f"class {self.__class__.__name__}"
 
             try:
+                exclude_cols = self.getOrDefault(self.exclude_cols)
                 output_col = self.getOrDefault(self.output_col)
-                numeric_cols = [f.name for f in dataset.schema.fields 
-                              if isinstance(f.dataType, NumericType)]
+                scaled_feature_col=self.getOrDefault(self.scaled_feature_col)
+                if scaled_feature_col:
+                    numeric_cols = [scaled_feature_col]
+                else:
+                    numeric_cols = [f.name for f in dataset.schema.fields \
+                                            if isinstance(f.dataType, NumericType) \
+                                                and f.name not in exclude_cols]
                 encoded_cols = [col for col in dataset.columns if col.endswith("_encoded")]
                 
                 assembler = VectorAssembler(
@@ -719,11 +1065,29 @@ class mlWorkLoads(attr.properties):
                 logger=self._logger,
             ))
         return self
-    
+
     def add_correlation_filter(self, threshold=0.9):
         self.stages.append(
             self.CorrelationFilter(
                 threshold=threshold,
+                logger=self._logger,
+            ))
+        return self
+        
+    def remove_above_stdv_filter(self, n_std=3, priority_cols=None):
+        self.stages.append(
+            self.StandardDeviationFilter(
+                priority_cols=priority_cols,
+                n_std=n_std,
+                logger=self._logger,
+            ))
+        return self
+    
+    def add_clean_text_columns(self, keep_spaces=True, priority_cols=None):
+        self.stages.append(
+            self.CleanTextColumns(
+                priority_cols=priority_cols,
+                keep_spaces=True,
                 logger=self._logger,
             ))
         return self
@@ -736,18 +1100,27 @@ class mlWorkLoads(attr.properties):
         ))
         return self
     
-    def add_categorical_encoding(self):
+    def add_categorical_encoding(self, exclude_cols=['target']):
         self.stages.append(
-            self.CategoricalEncoder(logger=self._logger,))
+            self.CategoricalEncoder(exclude_cols=exclude_cols, logger=self._logger,))
         return self
     
-    def add_feature_scaling(self):
+    def add_feature_scaling(self, output_col="scaled_features", exclude_cols=['target']):
         self.stages.append(
-            self.FeatureScaler(logger=self._logger,))
+            self.FeatureScaler(output_col=output_col, 
+                               exclude_cols=exclude_cols, 
+                               logger=self._logger,))
         return self
     
-    def add_feature_assembly(self, output_col="features"):
-        self.stages.append(self.FeatureAssembler(output_col=output_col,logger=self._logger,))
+    def add_feature_assembly(self, 
+                             output_col="features", 
+                             exclude_cols=['target'],
+                             scaled_feature_col="scaled_features"):
+        self.stages.append(self.FeatureAssembler(
+            output_col=output_col,
+            exclude_cols=exclude_cols,
+            scaled_feature_col=scaled_feature_col,
+            logger=self._logger,))
         return self
     
     def build(self):

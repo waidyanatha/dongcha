@@ -31,6 +31,7 @@ try:
 
     import litellm
     ''' LANGCHAIN '''
+    from langchain_community.llms.fake import FakeListLLM
     from langchain_groq import ChatGroq
     from langchain.chat_models import ChatOllama
 
@@ -89,12 +90,14 @@ class llmWorkLoads():
             'huggingface', # Huggingface
             'mistral',# mistral llm
             'ollama', # ollama local llm
-            'openai'
+            'openai',
+            'langchain', # FakeLLM and default
         ]
         self._starCoder = llm_name
         self._starCoderList = [
             "llama-3.3-70b-versatile",
-            "gemma:2b"
+            "gemma:2b",
+            "test", # a dummy startcode for FakeLLM
         ]
         self._temperature=temperature
         self._maxTokens = max_tokens
@@ -102,34 +105,32 @@ class llmWorkLoads():
         self._baseURL = base_url
 
         ''' initiate to load app.cfg data '''
-        global logger  # inherits the utils logger class
-        global pkgConf # inherits package app.ini config data
+        # global logger  # inherits the utils logger class
+        # global pkgConf # inherits package app.ini config data
 
         __s_fn_id__ = f"{self.__name__} function <__init__>"
 
         try:
             self.cwd=os.path.dirname(__file__)
-            pkgConf = configparser.ConfigParser()
-            pkgConf.read(os.path.join(self.cwd,__ini_fname__))
+            self.pkgConf = configparser.ConfigParser()
+            self.pkgConf.read(os.path.join(self.cwd,__ini_fname__))
 
-            self.projHome = pkgConf.get("CWDS","PROJECT")
+            self.projHome = self.pkgConf.get("CWDS","PROJECT")
             sys.path.insert(1,self.projHome)
 
             ''' innitialize the logger '''
             from dongcha.utils import Logger as logs
-            logger = logs.get_logger(
+            self.logger = logs.get_logger(
                 cwd=self.projHome,
                 app=self.__app__, 
                 module=self.__module__,
                 package=self.__package__,
                 ini_file=self.__ini_fname__)
             ''' set a new logger section '''
-            logger.info('########################################################')
-            logger.info("%s %s",self.__name__,self.__package__)
+            self.logger.info('########################################################')
+            self.logger.info("%s %s",self.__name__,self.__package__)
 
-
-            logger.info("%s Connection complete! ready to load data.",__s_fn_id__)
-            logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
+            self.logger.debug("%s initialization for %s module package %s %s done.\nStart workloads: %s."
                          %(self.__app__.upper(),
                            self.__module__.upper(),
                            self.__package__.upper(),
@@ -139,8 +140,8 @@ class llmWorkLoads():
             print("%s Class initialization complete" % self.__name__)
 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            lself.ogger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return None
@@ -157,16 +158,19 @@ class llmWorkLoads():
 
         try:
             ''' validate provider value '''
-            if self._provider not in self._provList:
-                raise AttributeError("Invalid class property provider, must be %s" 
-                                     % ", ".join(self._provList))
+            if self._provider is None or self._provider.lower() not in self._provList:
+                self._provider = "langchain"
+                self.logger.warning("%s Invalid provider set to default: %s, did you mean %s",
+                                    __s_fn_id__, self._provider.upper(), ", ".join(self._provList))
+            # else:
+            #     self._provider = provider.lower()
                 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
-        return self._provList
+        return self._provider
 
     @provider.setter
     def provider(self,provider:str) -> str:
@@ -175,15 +179,17 @@ class llmWorkLoads():
 
         try:
             ''' validate provider value '''
-            if provider.lower() not in self._provList:
+            if provider is None or provider.lower() not in self._provList:
+                # self._provider = "langchain"
+                # self.logger.warning("%s Invalid provider set to default: %s, did you mean %s",
+                #                     __s_fn_id__, self._provider.upper(), ", ".join(self._provList))
                 raise AttributeError("Invalid class property provider, must be %s" 
                                      % ", ".join(self._provList))
-
             self._provider = provider.lower()
 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return self._provider
@@ -196,13 +202,18 @@ class llmWorkLoads():
 
         try:
             ''' validate llm name value '''
-            if self._starCoder not in self._starCoderList:
-                raise AttributeError("Invalid class property starCoder, %s must be one of %s" 
-                                     % (type(self._llmName), ", ".join(self._starCoderList)))
+            if self._star_coder is Nine or self._star_coder.lower() not in self._starCoderList:
+                self._starCoder = "test"
+                self.logger.warning("%s Invalid star_coder %s set to default: or did you mean: %s",
+                                    __s_fn_id__, type(star_coder), self._starCoder.upper(), 
+                                        ", ".join(self._starCoderList))
+            # if self._starCoder not in self._starCoderList:
+            #     raise AttributeError("Invalid class property starCoder, %s must be one of %s" 
+            #                          % (type(self._starCoder), ", ".join(self._starCoderList)))
                 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return self._starCoder
@@ -215,14 +226,18 @@ class llmWorkLoads():
         try:
             ''' validate llm name value '''
             if star_coder.lower() not in self._starCoderList:
-                raise AttributeError("Invalid class property star_coder, %s must be one of %s" 
-                                     % (type(star_coder), ", ".join(self._starCoderList)))
-
-            self._starCoder = llm_name.lower()
+            #     self._starCoder = "test"
+            #     self.logger.warning("%s Invalid star_coder %s set to default:, did you mean: %s",
+            #                         __s_fn_id__, type(star_coder), self._starCoder.upper(), 
+            #                             ", ".join(self._starCoderList))
+                raise AttributeError("Invalid class property starCoder, %s must be one of %s" 
+                                     % (type(self._starCoder), ", ".join(self._starCoderList)))
+            else:
+                self._starCoder = star_coder.lower()
 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return self._starCoder
@@ -236,11 +251,14 @@ class llmWorkLoads():
         try:
             ''' validate temperature value '''
             if not isinstance(self._temperature, float) or not (0.0<=self._temperature<=1.0):
-                raise AttributeError("Invalid class property temperature, %s" % type(self._temperature))
+                self._temperature = 0.2
+                self.logger.warning("%s Invalid %s temperature set to: %0.2f; must be a float 0.0<=temperature<=1.0",
+                                    __s_fn_id__, type(temperature), self._temperature)
+                # raise AttributeError("Invalid class property temperature, %s" % type(self._temperature))
                 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return self._temperature
@@ -253,71 +271,20 @@ class llmWorkLoads():
         try:
             ''' validate property value '''
             if not isinstance(temperature, float) or not (0.0<=temperature<=1.0):
-                raise AttributeError("Invalid class property 0.0<=temperature<=1.0; must be a float")
+                # self._temperature = 0.2
+                # self.logger.warning("%s Invalid %s temperature set to: %0.2f; must be a float 0.0<=temperature<=1.0",
+                #                     __s_fn_id__, type(temperature), self._temperature)
+                raise AttributeError("Invalid property temperature, %s; must be a float 0.0<=temperature<=1.0"
+                                     % type(self._temperature))
 
             self._temperature = temperature
 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return self._temperature
-
-    # def patch_litellm(self):
-    #     """
-    #     """
-    #     __s_fn_id__ = f"{self.__name__} function <patch_litellm>"
-
-    #     try:
-    #         original_get_llm_provider = litellm.get_llm_provider
-    #         logger.debug("%s original_get_llm_provider = %s", 
-    #                      __s_fn_id__, original_get_llm_provider)
-    
-    #         def custom_get_llm_provider(model, *args, **kwargs):
-    #             _model = "/".join([self._provider.lower(), self._starCoder])
-    #             if model == _model:
-    #                 logger.debug("%s creating model: %s", __s_fn_id__, _model)
-    #                 # return ChatOllama(
-    #                 #     model=self._starCoder,
-    #                 #     temperature=self._temperature,
-    #                 #     max_tokens=self._maxTokens,
-    #                 #     max_retries=self._maxReTries,
-    #                 #     base_url=self._baseURL,
-    #                 # )
-    #                 ollama_model_ = ChatOllama(
-    #                     model=_model, #self._starCoder,
-    #                     temperature=self._temperature,
-    #                     max_tokens=self._maxTokens,
-    #                     max_retries=self._maxReTries,
-    #                     base_url=self._baseURL,
-    #                 )
-    #                 if ollama_model_ is None:
-    #                     raise RuntimeError("Failed to create model for:" % _model)
-    #                 logger.debug("%s created ollama_model_= %s", __s_fn_id__, ollama_model_)
-    #                 return ollama_model_
-    #             origin_prov=None
-    #             origin_prov = original_get_llm_provider(model, *args, **kwargs)
-    #             if origin_prov is None:
-    #                 raise ChildProcessError("Failed set origin_prov, returned" 
-    #                                         % type(origin_prov))
-    #             logger.debug("%s Set origin_prov = %s", __s_fn_id__, origin_prov)
-    #             # return original_get_llm_provider(model, *args, **kwargs)
-    #         litellm.get_llm_provider = custom_get_llm_provider
-    #         if not litellm.get_llm_provider:
-    #             raise ChildProcessError("Failed custom_get_llm_provider, returned %s" 
-    #                                     % type(litellm.get_llm_provider))
-    #         # Optionally, return something if needed
-
-    #     except Exception as err:
-    #         logger.error("%s %s \n",__s_fn_id__, err)
-    #         logger.debug(traceback.format_exc())
-    #         print("[Error]"+__s_fn_id__, err)
-    #         return None
-            
-    #     finally:
-    #         logger.debug("%s created %s", __s_fn_id__, self)
-    #         return self
 
     def get(self):
         """
@@ -328,11 +295,11 @@ class llmWorkLoads():
         _ret_model = None
 
         try:
-            _model = "/".join([self._provider.lower(), self._starCoder])
-            if self._provider == "ollama":
+            # _model = "/".join([self._provider.lower(), self._starCoder])
+            if self.provider == "ollama":
                 ''' running locally '''
                 _ret_model=ChatOllama(
-                    model=_model,#elf._starCoder,
+                    model="/".join([self._provider.lower(), self._starCoder]),
                     temperature=self._temperature,
                     max_tokens=self._maxTokens,
                     max_retries=self._maxReTries,
@@ -345,47 +312,34 @@ class llmWorkLoads():
                     model_name=_model
                 )
 
-                # original_get_llm_provider = litellm.get_llm_provider
-                # _ret_model = ChatOllama(
-                #     model=self._starCoder,
-                #     temperature=self._temperature,
-                #     max_tokens =self._maxTokens,
-                #     max_retries=self._maxReTries,
-                #     base_url=self._baseURL,
-                #     )
-                # # Monkey patch LiteLLM
-                # litellm.get_llm_provider = custom_get_llm_provider
-                # _ret_model=self.patch_litellm()
-
-            elif self._provider == "groq":
-                _model_name = "/".join([self._provider.lower(), self._starCoder])
-                # _ret_model = ChatGroq(
-                #     temperature=self._temperature,
-                #     max_tokens =self._maxTokens,
-                #     max_retries=self._maxReTries,
-                #     model_name=_model_name,
-                #     api_key = os.environ.get('GROQ_API_KEY')
-                # )
+            elif self.provider == "groq":
+                # _model_name = "/".join([self._provider.lower(), self._starCoder])
                 _ret_model=ChatGroq(
                     temperature=self._temperature,
                     max_tokens=self._maxTokens,
                     max_retries=self._maxReTries,
-                    model_name=_model_name,#self._starCoder,
+                    model_name="/".join([self._provider.lower(), self._starCoder]),
                     api_key=os.environ.get("GROQ_API_KEY")
                 )
+            elif self.provider == 'langchain':
+                _ret_model=FakeListLLM(
+                    responses=[
+                        "This is a test response 1",
+                        "This is a test response 2"
+                        ])
             else:
-                raise RuntimeError(f"Provider {self._provider} not supported in this implementation.")
+                raise RuntimeError(f"Provider {self.provider} not supported in this implementation.")
 
             ''' check return value '''
             if _ret_model is None:
                 raise ChildProcessError("Failed to establish a mode, returned %s" % type(_ret_model))
 
         except Exception as err:
-            logger.error("%s %s \n",__s_fn_id__, err)
-            logger.debug(traceback.format_exc())
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
             return None
 
         finally:
-            logger.debug("%s Succeeded in building model %s", __s_fn_id__, _ret_model)
+            self.logger.debug("%s Succeeded in building model %s", __s_fn_id__, _ret_model)
             return _ret_model

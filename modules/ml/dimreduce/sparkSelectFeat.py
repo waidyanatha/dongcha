@@ -280,42 +280,32 @@ class mlWorkLoads(attr.properties):
                     if isinstance(f.dataType, (NumericType, DoubleType, FloatType, IntegerType))
                 ]
 
-                if len(numeric_cols)<=0:
-                    print("\n[No numeric columns for variance thresholding]")
-                    return dataset
-                    
-                # print(f"\n[Processing {len(numeric_cols)} numeric columns for variance thresholding]")
-                
-                # Single-pass imputation and variance calculation
-                assembler = VectorAssembler(
-                    inputCols=numeric_cols,
-                    outputCol="temp_features",
-                    handleInvalid="keep"  # Automatically replaces nulls with mean
-                )
-
-                selector = VarianceThresholdSelector(
-                    varianceThreshold=var_thresh,
-                    featuresCol="temp_features",
-                    outputCol="filtered_features"
-                )
-
-                model = Pipeline(stages=[assembler, selector]).fit(dataset)
-                selected = model.stages[-1].selectedFeatures
-                to_keep = [numeric_cols[i] for i in selected]
-                to_drop = list(set(numeric_cols) - set(to_keep))
-
-                if not to_drop and hasattr(self, 'logger') and self.logger is not None:
-                    self.logger.warning("%s No columns to drop - all meet variance threshold", 
-                                        __s_fn_id__, var_thresh)
-
-                # if to_drop:
-                #     print(f"\n[Dropping {len(to_drop)} low-variance columns]")
-                #     print(f"Removed columns: {to_drop}")
-                #     print(f"Columns before: {len(dataset.columns)}, after: {len(dataset.columns)-len(to_drop)}")
-                #     return dataset.drop(*to_drop)
-
-                # print("\n[No columns dropped - all meet variance threshold]")
-
+                if len(numeric_cols)>0:                
+                    ''' Single-pass imputation and variance calculation '''
+                    assembler = VectorAssembler(
+                        inputCols=numeric_cols,
+                        outputCol="temp_features",
+                        handleInvalid="keep"  # Automatically replaces nulls with mean
+                    )
+    
+                    selector = VarianceThresholdSelector(
+                        varianceThreshold=var_thresh,
+                        featuresCol="temp_features",
+                        outputCol="filtered_features"
+                    )
+    
+                    model = Pipeline(stages=[assembler, selector]).fit(dataset)
+                    selected = model.stages[-1].selectedFeatures
+                    to_keep = [numeric_cols[i] for i in selected]
+                    to_drop = []
+                    to_drop = list(set(numeric_cols) - set(to_keep))
+    
+                    if len(to_drop)<=0 and hasattr(self, 'logger') and self.logger is not None:
+                        self.logger.warning("%s Columns pass variance threshold > %0.2f, keeping: %s", 
+                                            __s_fn_id__, var_thresh, ", ".join(to_keep).upper())
+                else:
+                    raise AttributeError("No numeric columns to apply variance thresholding, aborting")
+    
             except Exception as err:
                 if hasattr(self, 'logger') and self.logger is not None:
                     self.logger.error("%s %s \n", __s_fn_id__, err)
@@ -325,7 +315,7 @@ class mlWorkLoads(attr.properties):
 
             finally:
                 if hasattr(self, 'logger') and self.logger is not None:
-                    self.logger.info("%s Dropping %d low-variance columns > %0.2f threshold", 
+                    self.logger.info("%s Dropping %d low-variance columns < %0.2f threshold", 
                                   __s_fn_id__, len(to_drop), var_thresh)
                     self.logger.info("%s Removed columns: %s", __s_fn_id__, ", ".join(to_drop).upper())
                     self.logger.info("%s Number of columns before: %d and after: %d",

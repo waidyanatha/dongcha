@@ -17,14 +17,6 @@ try:
     import logging
     import traceback
     import functools
-#     import findspark
-#     findspark.init()
-#     from pyspark.sql import functions as F
-# #     from pyspark.sql.functions import lit, current_timestamp
-#     from pyspark.sql import DataFrame
-#     from google.cloud import storage   # handles GCS reads and writes
-#     import pandas as pd
-#     import numpy as np
     import json
     from dotenv import load_dotenv
     load_dotenv()
@@ -34,6 +26,7 @@ try:
     from langchain_community.llms.fake import FakeListLLM
     from langchain_groq import ChatGroq
     from langchain.chat_models import ChatOllama
+    from openai import OpenAI
 
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
           % (__name__.upper(),__package__.upper(),__module__.upper()))
@@ -85,18 +78,24 @@ class llmWorkLoads():
         self._provList=[
             'anthropic', # Anthropic llm
             'azure',  # microsoft llm
+            'deepseek', 
             'gemini', # google llm
-            'groq',   # groc llms
+            'groq',   # groq llms
             'huggingface', # Huggingface
             'mistral',# mistral llm
             'ollama', # ollama local llm
             'openai',
-            'langchain', # FakeLLM and default
+            'fake', # FakeLLM and default
         ]
         self._starCoder = llm_name
         self._starCoderList = [
-            "llama-3.3-70b-versatile",
-            "gemma:2b",
+            "llama-3.3-70b-versatile", # groq
+            "deepseek-chat", # deepseek
+            "gemma:2b",  # ollama
+            "gemma:7b" # ollama
+            "gemma-7b-it", # groq
+            "mistral-saba-24b" #deprecated: "mixtral-8x7b-32768", # groq
+            "llama-3.1-8b-instant", # groq
             "test", # a dummy startcode for FakeLLM
         ]
         self._temperature=temperature
@@ -105,9 +104,6 @@ class llmWorkLoads():
         self._baseURL = base_url
 
         ''' initiate to load app.cfg data '''
-        # global logger  # inherits the utils logger class
-        # global pkgConf # inherits package app.ini config data
-
         __s_fn_id__ = f"{self.__name__} function <__init__>"
 
         try:
@@ -118,7 +114,7 @@ class llmWorkLoads():
             self.projHome = self.pkgConf.get("CWDS","PROJECT")
             sys.path.insert(1,self.projHome)
 
-            ''' innitialize the logger '''
+            ''' initialize the logger '''
             from dongcha.utils import Logger as logs
             self.logger = logs.get_logger(
                 cwd=self.projHome,
@@ -141,14 +137,103 @@ class llmWorkLoads():
 
         except Exception as err:
             self.logger.error("%s %s \n",__s_fn_id__, err)
-            lself.ogger.debug(traceback.format_exc())
+            self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
 
         return None
 
-    ''' Function --- CLASS PROPERTY SETTER & GETTER ---
 
-            author: <nuwan.waidyanatha@rezgateway.com>
+    def get(self):
+        """
+        """
+
+        __s_fn_id__ = f"{self.__name__} function <{self.get.__name__}>"
+
+        _ret_model = None
+
+        try:
+            ''' used for model identification '''
+            _model = self._starCoder  # Use direct model name
+            self.logger.debug("%s setting model as: %s for provider: %s", __s_fn_id__, _model, self.provider)
+            if self.provider != "openai" and 'OPENAI_API_KEY' in os.environ:
+                del os.environ['OPENAI_API_KEY']
+
+            if self.provider == "ollama":
+                ''' running locally '''
+                _ret_model=ChatOllama(
+                    model=_model,
+                    temperature=self.temperature,
+                    # max_tokens parameter removed as it's not supported by ChatOllama
+                    # max_retries parameter removed as it's not supported by ChatOllama
+                    base_url=self._baseURL,
+                )
+                if not _ret_model:
+                    raise ChildProcessError("Failed to set ChatOllama with model: received %s" 
+                                            % type(_ret_model))
+
+                # Import and use wrapper if available
+                try:
+                    from dongcha.modules.ml.llm import crewai_ollama_wrapper as wrapper
+                    self.logger.debug("%s Wrapping ChatOllama with model_name: %s", __s_fn_id__, _model)
+                    _ret_model = wrapper.CrewAIOllamaWrapper(
+                        ollama_model=_ret_model, 
+                        model_name=_model
+                    )
+                    self.logger.debug("%s Wrapper created successfully: %s", __s_fn_id__, _ret_model)
+                except ImportError as ie:
+                    self.logger.warning("%s Wrapper not available, using direct ChatOllama: %s", __s_fn_id__, ie)
+                except Exception as we:
+                    self.logger.error("%s Error creating wrapper: %s", __s_fn_id__, we)
+                    self.logger.debug(traceback.format_exc())
+
+            elif self.provider == "groq":
+                _model = "/".join([self._provider, self._starCoder]) # need to prefix it with the provider name
+                _ret_model=ChatGroq(
+                    temperature=self.temperature,
+                    max_tokens=self.maxTokens,
+                    max_retries=self.maxReTries,
+                    model_name=_model,
+                    api_key=os.environ.get("GROQ_API_KEY")
+                )
+                
+            elif self.provider == 'fake':
+                _ret_model=FakeListLLM(
+                    responses=[
+                        "This is a test response 1",
+                        "This is a test response 2"
+                        ])
+
+            elif self.provider == "deepseek":
+                _ret_model = OpenAI(
+                    api_key=os.environ.get("DEEPSEEK_API_KEY"),
+                    base_url="https://api.deepseek.com",  # Correct DeepSeek API endpoint
+                )
+                # Note: temperature, max_tokens, etc. are passed during completion calls, not init
+                
+            elif self.provider == "openai":
+                _ret_model = OpenAI(
+                    api_key=os.environ.get("OPENAI_API_KEY"),
+                )
+                
+            else:
+                 raise NotImplementedError(f"Provider {self.provider} not supported yet")
+
+            ''' check return value '''
+            if _ret_model is None:
+                raise RuntimeError("Failed to establish a model, returned %s" % type(_ret_model))
+
+        except Exception as err:
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+            return None
+
+        finally:
+            self.logger.debug("%s Succeeded in building model %s", __s_fn_id__, type(_ret_model))
+            return _ret_model
+
+    ''' Function --- CLASS PROPERTY SETTER & GETTER ---
+            author: <samana.thetha@gmail.com>
     '''
     ''' --- PROVIDER --- '''
     @property
@@ -159,11 +244,9 @@ class llmWorkLoads():
         try:
             ''' validate provider value '''
             if self._provider is None or self._provider.lower() not in self._provList:
-                self._provider = "langchain"
+                self._provider = "fake"
                 self.logger.warning("%s Invalid provider set to default: %s, did you mean %s",
                                     __s_fn_id__, self._provider.upper(), ", ".join(self._provList))
-            # else:
-            #     self._provider = provider.lower()
                 
         except Exception as err:
             self.logger.error("%s %s \n",__s_fn_id__, err)
@@ -180,9 +263,6 @@ class llmWorkLoads():
         try:
             ''' validate provider value '''
             if provider is None or provider.lower() not in self._provList:
-                # self._provider = "langchain"
-                # self.logger.warning("%s Invalid provider set to default: %s, did you mean %s",
-                #                     __s_fn_id__, self._provider.upper(), ", ".join(self._provList))
                 raise AttributeError("Invalid class property provider, must be %s" 
                                      % ", ".join(self._provList))
             self._provider = provider.lower()
@@ -202,14 +282,11 @@ class llmWorkLoads():
 
         try:
             ''' validate llm name value '''
-            if self._star_coder is Nine or self._star_coder.lower() not in self._starCoderList:
+            if self._starCoder is None or self._starCoder.lower() not in self._starCoderList:
                 self._starCoder = "test"
-                self.logger.warning("%s Invalid star_coder %s set to default: or did you mean: %s",
-                                    __s_fn_id__, type(star_coder), self._starCoder.upper(), 
+                self.logger.warning("%s Invalid starCoder %s set to default: %s or did you mean: %s",
+                                    __s_fn_id__, self._starCoder, self._starCoder.upper(), 
                                         ", ".join(self._starCoderList))
-            # if self._starCoder not in self._starCoderList:
-            #     raise AttributeError("Invalid class property starCoder, %s must be one of %s" 
-            #                          % (type(self._starCoder), ", ".join(self._starCoderList)))
                 
         except Exception as err:
             self.logger.error("%s %s \n",__s_fn_id__, err)
@@ -225,13 +302,9 @@ class llmWorkLoads():
 
         try:
             ''' validate llm name value '''
-            if star_coder.lower() not in self._starCoderList:
-            #     self._starCoder = "test"
-            #     self.logger.warning("%s Invalid star_coder %s set to default:, did you mean: %s",
-            #                         __s_fn_id__, type(star_coder), self._starCoder.upper(), 
-            #                             ", ".join(self._starCoderList))
+            if star_coder is None or star_coder.lower() not in self._starCoderList:
                 raise AttributeError("Invalid class property starCoder, %s must be one of %s" 
-                                     % (type(self._starCoder), ", ".join(self._starCoderList)))
+                                     % (star_coder, ", ".join(self._starCoderList)))
             else:
                 self._starCoder = star_coder.lower()
 
@@ -250,11 +323,10 @@ class llmWorkLoads():
 
         try:
             ''' validate temperature value '''
-            if not isinstance(self._temperature, float) or not (0.0<=self._temperature<=1.0):
-                self._temperature = 0.2
+            if not isinstance(self._temperature, (int, float)) or not (0.0<=self._temperature<=1.0):
+                self._temperature = 0.1
                 self.logger.warning("%s Invalid %s temperature set to: %0.2f; must be a float 0.0<=temperature<=1.0",
-                                    __s_fn_id__, type(temperature), self._temperature)
-                # raise AttributeError("Invalid class property temperature, %s" % type(self._temperature))
+                                    __s_fn_id__, type(self._temperature), self._temperature)
                 
         except Exception as err:
             self.logger.error("%s %s \n",__s_fn_id__, err)
@@ -270,14 +342,11 @@ class llmWorkLoads():
 
         try:
             ''' validate property value '''
-            if not isinstance(temperature, float) or not (0.0<=temperature<=1.0):
-                # self._temperature = 0.2
-                # self.logger.warning("%s Invalid %s temperature set to: %0.2f; must be a float 0.0<=temperature<=1.0",
-                #                     __s_fn_id__, type(temperature), self._temperature)
+            if not isinstance(temperature, (int, float)) or not (0.0<=temperature<=1.0):
                 raise AttributeError("Invalid property temperature, %s; must be a float 0.0<=temperature<=1.0"
-                                     % type(self._temperature))
+                                     % type(temperature))
 
-            self._temperature = temperature
+            self._temperature = float(temperature)
 
         except Exception as err:
             self.logger.error("%s %s \n",__s_fn_id__, err)
@@ -286,60 +355,100 @@ class llmWorkLoads():
 
         return self._temperature
 
-    def get(self):
-        """
-        """
+    ''' --- MAX TOKENS --- '''
+    @property
+    def maxTokens(self):
 
-        __s_fn_id__ = f"{self.__name__} function <get>"
-
-        _ret_model = None
+        __s_fn_id__ = f"{self.__name__} function <@property maxTokens>"
+        __def_max_tokens__ = 300
 
         try:
-            # _model = "/".join([self._provider.lower(), self._starCoder])
-            if self.provider == "ollama":
-                ''' running locally '''
-                _ret_model=ChatOllama(
-                    model="/".join([self._provider.lower(), self._starCoder]),
-                    temperature=self._temperature,
-                    max_tokens=self._maxTokens,
-                    max_retries=self._maxReTries,
-                    base_url=self._baseURL,
-                )
-                from dongcha.modules.ml.llm import crewai_ollama_wrapper as wrapper
-                # from dongcha.modules.ml.llm import crewai_wrapper_tool as tool
-                _ret_model = wrapper.CrewAIOllamaWrapper(
-                    ollama_model=_ret_model, 
-                    model_name=_model
-                )
+            ''' validate max tokens value '''
+            if not isinstance(self._maxTokens, int) or self._maxTokens<=0:
+                self._maxTokens = __def_max_tokens__
+                self.logger.warning("%s Invalid %s max_tokens set to: %d; must be an int >0",
+                                    __s_fn_id__, type(self._maxTokens), self._maxTokens)
+                
+        except Exception as err:
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
 
-            elif self.provider == "groq":
-                # _model_name = "/".join([self._provider.lower(), self._starCoder])
-                _ret_model=ChatGroq(
-                    temperature=self._temperature,
-                    max_tokens=self._maxTokens,
-                    max_retries=self._maxReTries,
-                    model_name="/".join([self._provider.lower(), self._starCoder]),
-                    api_key=os.environ.get("GROQ_API_KEY")
-                )
-            elif self.provider == 'langchain':
-                _ret_model=FakeListLLM(
-                    responses=[
-                        "This is a test response 1",
-                        "This is a test response 2"
-                        ])
-            else:
-                raise RuntimeError(f"Provider {self.provider} not supported in this implementation.")
+        return self._maxTokens
 
-            ''' check return value '''
-            if _ret_model is None:
-                raise ChildProcessError("Failed to establish a mode, returned %s" % type(_ret_model))
+    @maxTokens.setter
+    def maxTokens(self,max_tokens:int) -> int:
+
+        __s_fn_id__ = f"{self.__name__} function <@maxTokens.setter>"
+
+        try:
+            ''' validate property value '''
+            if not isinstance(max_tokens, int) or max_tokens<=0:
+                raise AttributeError("Invalid property max_tokens, %s; must be an int > 0"
+                                     % type(max_tokens))
+
+            self._maxTokens = max_tokens
 
         except Exception as err:
             self.logger.error("%s %s \n",__s_fn_id__, err)
             self.logger.debug(traceback.format_exc())
             print("[Error]"+__s_fn_id__, err)
-            return None
 
-        finally:
-            self.logger.debug("%s Succeeded in building model %s", __s_fn_id__, _ret_model)
-            return _ret_model
+        return self._maxTokens
+
+    ''' --- MAX RETRIES --- '''
+    @property
+    def maxReTries(self) -> int:
+
+        __s_fn_id__ = f"{self.__name__} function <@property maxReTries>"
+        __def_max_retries__ = 0
+
+        try:
+            ''' validate max retries value '''
+            if not isinstance(self._maxReTries, int) or self._maxReTries<0:
+                self._maxReTries = __def_max_retries__
+                self.logger.warning("%s Invalid %s max retries set to: %d; must be an int >= 0",
+                                    __s_fn_id__, type(self._maxReTries), self._maxReTries)
+                
+        except Exception as err:
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._maxReTries
+
+    @maxReTries.setter
+    def maxReTries(self,max_retries:int) -> int:
+
+        __s_fn_id__ = f"{self.__name__} function <@maxReTries.setter>"
+
+        try:
+            ''' validate property value '''
+            if not isinstance(max_retries, int) or max_retries<0:
+                raise AttributeError("Invalid property max_retries, %s; must be an int >= 0"
+                                     % type(max_retries))
+
+            self._maxReTries = max_retries
+
+        except Exception as err:
+            self.logger.error("%s %s \n",__s_fn_id__, err)
+            self.logger.debug(traceback.format_exc())
+            print("[Error]"+__s_fn_id__, err)
+
+        return self._maxReTries
+
+
+    def debug_info(self):
+        """Debug method to show current configuration"""
+        info = {
+            'provider': self._provider,
+            'starCoder': self._starCoder,
+            'temperature': self._temperature,
+            'maxTokens': self._maxTokens,
+            'maxReTries': self._maxReTries,
+            'baseURL': self._baseURL,
+            'valid_providers': self._provList,
+            'valid_models': self._starCoderList
+        }
+        print(f"Current LLM Config: {info}")
+        return info

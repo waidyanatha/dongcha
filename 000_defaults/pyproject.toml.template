@@ -79,7 +79,9 @@ sqlalchemy = ">=2.0.27,<3.0.0"
 tensorflow = "^2.18.0"
 tensorflow-probability = "^0.25.0"
 tf-keras = "^2.18.0"
-torch = "^1.12.1"
+torch = ">=2.1.0"
+torchvision = "^0.23.0"
+torchaudio = "^2.8.0"
 tqdm = "^4.64.1"
 transformers = "^4.22.2"
 umap-learn = "^0.5.7"
@@ -87,6 +89,7 @@ wheel = "^0.38.4"
 #xeus-python = "^0.15.12"
 xgboost = "^3.0.2"
 ydata-profiling = "^4.12.1"
+torchaudio = "^2.8.0"
 
 [build-system]
 requires = ["poetry-core"]

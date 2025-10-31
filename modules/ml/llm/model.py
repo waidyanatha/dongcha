@@ -21,11 +21,14 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 
-    import litellm
+    # import litellm
     ''' LANGCHAIN '''
     from langchain_community.llms.fake import FakeListLLM
+    # from langchain_community.chat_models import ChatOllama
+    from langchain_ollama import ChatOllama
+    # from langchain_groq import ChatGroq
     from langchain_groq import ChatGroq
-    from langchain.chat_models import ChatOllama
+    # from langchain.chat_models import ChatOllama
     from openai import OpenAI
 
     print("All functional %s-libraries in %s-package of %s-module imported successfully!"
@@ -91,11 +94,13 @@ class llmWorkLoads():
         self._starCoderList = [
             "llama-3.3-70b-versatile", # groq
             "deepseek-chat", # deepseek
+            "deepseek-coder-v2",
+            "llama3.2", # ollama
+            "llama-3.1-8b-instant", # groq
             "gemma:2b",  # ollama
             "gemma:7b" # ollama
             "gemma-7b-it", # groq
             "mistral-saba-24b" #deprecated: "mixtral-8x7b-32768", # groq
-            "llama-3.1-8b-instant", # groq
             "test", # a dummy startcode for FakeLLM
         ]
         self._temperature=temperature
